@@ -1659,8 +1659,10 @@ Scalar functions
 +------------------------+---------------------------------------------------------------------------+---------------------------------------------------+
 | REPLACE                |  ``REPLACE(col1, 'foo', 'bar')``                                          | Replace all instances of a substring in a string  |
 |                        |                                                                           | with a new string.                                |
-+------------------------+---------------------------------------------------------------------------+---------------------------------------------------+
-| ROUND                  |  ``ROUND(col1)``                                                          | Round a value to the nearest BIGINT value.        |
++------------------------+---------------------------------------------------------------------------+---------------------------------------------------|
+| ROUND                  |  ``ROUND(col1)`` or ``ROUND(col1, scale)``                                | Round a value to the nearest BIGINT value.        |
+|                        |                                                                           | scale is an INT indicating the number.            |
+|                        |                                                                           | of decimal places to round to.                    |
 +------------------------+---------------------------------------------------------------------------+---------------------------------------------------+
 | SIGN                   |  ``SIGN(col1)``                                                           | The sign of a numeric value as an INTEGER:        |
 |                        |                                                                           | * -1 if the argument is negative                  |
