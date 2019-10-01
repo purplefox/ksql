@@ -41,6 +41,10 @@ public class PlanVisitor<C, R> {
     return visitPlan(node, context);
   }
 
+  protected R visitExplode(final ExplodeNode node, final C context) {
+    return visitPlan(node, context);
+  }
+
   protected R visitOutput(final OutputNode node, final C context) {
     return visitPlan(node, context);
   }

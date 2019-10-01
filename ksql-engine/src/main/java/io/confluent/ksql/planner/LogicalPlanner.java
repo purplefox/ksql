@@ -78,6 +78,10 @@ public class LogicalPlanner {
       currentNode = buildFilterNode(currentNode, analysis.getWhereExpression().get());
     }
 
+    if (analysis.hasExplode()) {
+      currentNode = buildExplodeNode(currentNode);
+    }
+
     if (analysis.getGroupByExpressions().isEmpty()) {
       currentNode = buildProjectNode(currentNode);
     } else {
@@ -214,6 +218,10 @@ public class LogicalPlanner {
         keyFieldName,
         analysis.getSelectExpressions()
     );
+  }
+
+  private PlanNode buildExplodeNode(final PlanNode planNode) {
+    return planNode;
   }
 
   private static FilterNode buildFilterNode(

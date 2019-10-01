@@ -15,7 +15,6 @@
 
 package io.confluent.ksql.function.udtf;
 
-import io.confluent.ksql.function.udaf.UdafFactory;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
