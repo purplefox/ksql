@@ -27,6 +27,7 @@ import io.confluent.ksql.execution.plan.LogicalSchemaWithMetaAndKeyFields;
 import io.confluent.ksql.execution.plan.SelectExpression;
 import io.confluent.ksql.execution.plan.StreamAggregate;
 import io.confluent.ksql.execution.plan.StreamFilter;
+import io.confluent.ksql.execution.plan.StreamFlatMap;
 import io.confluent.ksql.execution.plan.StreamGroupBy;
 import io.confluent.ksql.execution.plan.StreamGroupByKey;
 import io.confluent.ksql.execution.plan.StreamMapValues;
@@ -139,6 +140,17 @@ public final class ExecutionStepFactory {
         source,
         formats,
         topicName
+    );
+  }
+
+  public static <K> StreamFlatMap<KStream<K, GenericRow>> streamFlatMap(
+      final QueryContext.Stacker stacker,
+      final ExecutionStep<KStream<K, GenericRow>> source
+  ) {
+    final QueryContext queryContext = stacker.getQueryContext();
+    return new StreamFlatMap<>(
+        source.getProperties().withQueryContext(queryContext),
+        source
     );
   }
 

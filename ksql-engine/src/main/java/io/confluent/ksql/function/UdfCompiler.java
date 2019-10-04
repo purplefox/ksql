@@ -22,6 +22,8 @@ import io.confluent.ksql.execution.function.UdfUtil;
 import io.confluent.ksql.function.udaf.TableUdaf;
 import io.confluent.ksql.function.udaf.Udaf;
 import io.confluent.ksql.function.udaf.UdfArgSupplier;
+import io.confluent.ksql.function.udaf.UdtfArgSupplier;
+import io.confluent.ksql.function.udtf.Udtf;
 import io.confluent.ksql.metastore.TypeRegistry;
 import io.confluent.ksql.schema.ksql.SchemaConverters;
 import io.confluent.ksql.schema.ksql.SqlTypeParser;
@@ -166,6 +168,58 @@ public class UdfCompiler {
     }
   }
 
+  KsqlTableFunction<?, ?> compileUDTF(final Method method,
+                                      final ClassLoader loader,
+                                      final String functionName,
+                                      final String description,
+                                      final String inputSchema,
+                                      final String outputSchema
+  ) {
+
+    final String functionInfo = String.format("method='%s', functionName='%s', UDFClass='%s'",
+        method.getName(), functionName, method.getDeclaringClass());
+
+    if (!(Udtf.class.equals(method.getReturnType()))) {
+      throw new KsqlException("UDTFs must implement " + Udtf.class.getName() + ". "
+          + functionInfo);
+    }
+
+    final UdafTypes types = new UdafTypes(method, functionName);
+    final Schema inputValue = types.getInputSchema(inputSchema);
+    final List<Schema> args = Collections.singletonList(inputValue);
+    final Schema returnValue = types.getOutputSchema(outputSchema);
+
+    try {
+      final String generatedClassName
+          = method.getDeclaringClass().getSimpleName() + "_" + method.getName() + "_TableFunction";
+      final String udtfClass = generateUdtfClass(generatedClassName,
+          method,
+          functionName,
+          description);
+
+      LOGGER.trace("Generated class for functionName={}, method={} class\n{}\n",
+          functionName,
+          method.getName(),
+          udtfClass);
+
+      final ClassLoader javaSourceClassLoader
+          = createJavaSourceClassLoader(loader, generatedClassName, udtfClass);
+      final IScriptEvaluator scriptEvaluator =
+          createScriptEvaluator(method,
+              javaSourceClassLoader,
+              UDAF_PACKAGE + generatedClassName);
+      final UdtfArgSupplier evaluator = (UdtfArgSupplier)
+          scriptEvaluator.createFastEvaluator("return new " + generatedClassName
+                  + "(args, aggregateType, outputType, metrics);",
+              UdtfArgSupplier.class, new String[]{"args", "aggregateType", "outputType", "metrics"});
+
+      return evaluator.apply(args, returnValue, metrics);
+    } catch (final Exception e) {
+      throw new KsqlException("Failed to compile KSqlAggregateFunction for method='"
+          + method.getName() + "' in class='" + method.getDeclaringClass() + "'", e);
+    }
+  }
+
   private class UdafTypes {
 
     private final Type inputType;
@@ -299,6 +353,33 @@ public class UdfCompiler {
         });
 
     return UdafTemplate.generateCode(method, generatedClassName, functionName, description);
+  }
+
+  private static String generateUdtfClass(
+      final String generatedClassName,
+      final Method method,
+      final String functionName,
+      final String description
+  ) {
+    validateMethodSignature(method);
+    Arrays.stream(method.getParameterTypes())
+        .filter(UdfCompiler::isUnsupportedType)
+        .findFirst()
+        .ifPresent(type -> {
+          throw new KsqlException(
+              String.format(
+                  "Type %s is not supported by UDTF Factory methods. "
+                      + "Supported types %s. functionName=%s, method=%s, class=%s",
+                  type,
+                  SUPPORTED_TYPES,
+                  functionName,
+                  method.getName(),
+                  method.getDeclaringClass()
+              )
+          );
+        });
+
+    return UdtfTemplate.generateCode(method, generatedClassName, functionName, description);
   }
 
   /**

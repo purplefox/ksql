@@ -49,4 +49,8 @@ public class PlanVisitor<C, R> {
     return visitPlan(node, context);
   }
 
+  protected R visitFlatMap(final FlatMapNode node, final C context) {
+    return visitPlan(node, context);
+  }
+
 }

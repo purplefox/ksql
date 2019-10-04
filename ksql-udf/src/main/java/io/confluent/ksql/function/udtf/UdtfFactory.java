@@ -96,15 +96,6 @@ public @interface UdtfFactory {
   String paramSchema() default "";
 
   /**
-   * The schema for the intermediate aggregate value.
-   *
-   * <p>For simple parameters, this is optional and can be determined from
-   * the Java value itself. For complex aggregate types (e.g. {@code Struct} types),
-   * this is required and will fail if not supplied.
-   */
-  String aggregateSchema() default "";
-
-  /**
    * The schema for the return value.
    *
    * <p>For simple parameters, this is optional and can be determined from

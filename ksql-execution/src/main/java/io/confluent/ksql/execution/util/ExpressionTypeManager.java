@@ -50,6 +50,7 @@ import io.confluent.ksql.execution.function.udf.structfieldextractor.FetchFieldF
 import io.confluent.ksql.function.FunctionRegistry;
 import io.confluent.ksql.function.KsqlAggregateFunction;
 import io.confluent.ksql.function.KsqlFunctionException;
+import io.confluent.ksql.function.KsqlTableFunction;
 import io.confluent.ksql.function.UdfFactory;
 import io.confluent.ksql.schema.Operator;
 import io.confluent.ksql.schema.ksql.Column;
@@ -355,6 +356,22 @@ public class ExpressionTypeManager {
             .getAggregate(node.getName().name(), schema);
 
         final Schema returnSchema = aggFunc.getReturnType();
+
+        final SqlType returnType = CONNECT_TO_SQL_SCHEMA_CONVERTER.toSqlType(returnSchema);
+
+        expressionTypeContext.setSchema(returnType, returnSchema);
+        return null;
+      }
+
+      if (functionRegistry.isTableFunction(node.getName().name())) {
+        final Schema schema = node.getArguments().isEmpty()
+            ? FunctionRegistry.DEFAULT_FUNCTION_ARG_SCHEMA
+            : getExpressionSchema(node.getArguments().get(0));
+
+        final KsqlTableFunction tableFunction = functionRegistry
+            .getTableFunction(node.getName().name(), schema);
+
+        final Schema returnSchema = tableFunction.getReturnType();
 
         final SqlType returnType = CONNECT_TO_SQL_SCHEMA_CONVERTER.toSqlType(returnSchema);
 

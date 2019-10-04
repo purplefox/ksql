@@ -174,8 +174,6 @@ public class UdfLoader {
                                           processMethodAnnotation(loader, pathLoadedFrom))
         .matchClassesWithAnnotation(UdafDescription.class,
             handleUdafAnnotation(loader, pathLoadedFrom))
-        .matchClassesWithAnnotation(UdtfDescription.class,
-            handleUdtfAnnotation(loader, pathLoadedFrom))
         .scan();
   }
 
@@ -242,7 +240,7 @@ public class UdfLoader {
   ) {
     return (theClass) ->  {
       final UdtfDescription udtfAnnotation = theClass.getAnnotation(UdtfDescription.class);
-      final List<KsqlAggregateFunction<?, ?, ?>> aggregateFunctions
+      final List<KsqlTableFunction<?, ?>> tableFunctions
           = Arrays.stream(theClass.getMethods())
           .filter(method -> method.getAnnotation(UdtfFactory.class) != null)
           .filter(method -> {
@@ -263,12 +261,11 @@ public class UdfLoader {
                   udtfAnnotation.name(),
                   path,
                   method.getDeclaringClass());
-              return Optional.of(compiler.compileAggregate(method,
+              return Optional.of(compiler.compileUDTF(method,
                   loader,
                   udtfAnnotation.name(),
                   annotation.description(),
                   annotation.paramSchema(),
-                  annotation.aggregateSchema(),
                   annotation.returnSchema()
               ));
             } catch (final Exception e) {
@@ -279,19 +276,19 @@ public class UdfLoader {
                   path,
                   e);
             }
-            return Optional.<KsqlAggregateFunction<?, ?, ?>>empty();
+            return Optional.<KsqlTableFunction<?, ?>>empty();
           }).filter(Optional::isPresent)
           .map(Optional::get)
           .collect(Collectors.toList());
 
-      functionRegistry.addAggregateFunctionFactory(new UdafAggregateFunctionFactory(
+      functionRegistry.addTableFunctionFactory(new UdtfTableFunctionFactory(
           new UdfMetadata(udtfAnnotation.name(),
               udtfAnnotation.description(),
               udtfAnnotation.author(),
               udtfAnnotation.version(),
               path,
               false),
-          aggregateFunctions));
+          tableFunctions));
     };
   }
 

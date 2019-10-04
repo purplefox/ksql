@@ -29,6 +29,7 @@ import io.confluent.ksql.execution.context.QueryLoggerUtil;
 import io.confluent.ksql.execution.ddl.commands.KsqlTopic;
 import io.confluent.ksql.execution.expression.tree.ColumnReferenceExp;
 import io.confluent.ksql.execution.expression.tree.Expression;
+import io.confluent.ksql.execution.expression.tree.FunctionCall;
 import io.confluent.ksql.execution.plan.ExecutionStep;
 import io.confluent.ksql.execution.plan.ExecutionStepProperties;
 import io.confluent.ksql.execution.plan.Formats;
@@ -36,6 +37,7 @@ import io.confluent.ksql.execution.plan.JoinType;
 import io.confluent.ksql.execution.plan.LogicalSchemaWithMetaAndKeyFields;
 import io.confluent.ksql.execution.plan.SelectExpression;
 import io.confluent.ksql.execution.plan.StreamFilter;
+import io.confluent.ksql.execution.plan.StreamFlatMap;
 import io.confluent.ksql.execution.plan.StreamGroupBy;
 import io.confluent.ksql.execution.plan.StreamGroupByKey;
 import io.confluent.ksql.execution.plan.StreamMapValues;
@@ -47,6 +49,7 @@ import io.confluent.ksql.execution.plan.StreamTableJoin;
 import io.confluent.ksql.execution.plan.StreamToTable;
 import io.confluent.ksql.execution.streams.ExecutionStepFactory;
 import io.confluent.ksql.execution.streams.StreamFilterBuilder;
+import io.confluent.ksql.execution.streams.StreamFlatMapBuilder;
 import io.confluent.ksql.execution.streams.StreamGroupByBuilder;
 import io.confluent.ksql.execution.streams.StreamMapValuesBuilder;
 import io.confluent.ksql.execution.streams.StreamSelectKeyBuilder;
@@ -651,8 +654,8 @@ public class SchemaKStream<K> {
         ColumnName.of(proposedKey.fullName()), proposedKey.type());
 
     final KeyField resultantKeyField = isRowKey(fieldName)
-            ? keyField.withLegacy(proposedLegacy)
-            : KeyField.of(fieldName, proposedLegacy);
+        ? keyField.withLegacy(proposedLegacy)
+        : KeyField.of(fieldName, proposedLegacy);
 
     final boolean namesMatch = existingKey
         .map(kf -> SchemaUtil.isFieldName(proposedKey.fullName(), kf.fullName()))
@@ -825,6 +828,31 @@ public class SchemaKStream<K> {
         ksqlConfig,
         functionRegistry
     );
+  }
+
+  public SchemaKStream<K> flatMap(final FunctionCall functionCall,
+      final QueryContext.Stacker contextStacker,
+      final KsqlQueryBuilder ksqlQueryBuilder) {
+
+    final KStream<K, GenericRow> mappedStream =
+        StreamFlatMapBuilder.build(kstream, functionCall, functionRegistry, getSchema());
+
+    /*
+    TODO need to change the schema here, convert to return type of table functions
+    and name new field same name as the new field name used in the new select expression
+    created by the tablefunctionrewriter
+
+    Take a look how it is done for the aggregate
+     */
+
+    final StreamFlatMap<KStream<K, GenericRow>> step = ExecutionStepFactory.streamFlatMap(
+        contextStacker,
+        sourceStep
+    );
+
+    return new SchemaKStream<>(mappedStream, step, keyFormat, keySerde, keyField,
+        sourceSchemaKStreams,
+        type, ksqlConfig, functionRegistry);
   }
 
   @SuppressWarnings("unchecked")
