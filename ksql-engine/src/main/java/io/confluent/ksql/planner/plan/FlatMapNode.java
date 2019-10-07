@@ -16,12 +16,26 @@
 package io.confluent.ksql.planner.plan;
 
 import com.google.common.collect.ImmutableList;
+import io.confluent.ksql.analyzer.TableFunctionAnalysis;
 import io.confluent.ksql.execution.builder.KsqlQueryBuilder;
+import io.confluent.ksql.execution.context.QueryContext;
+import io.confluent.ksql.execution.expression.tree.ColumnReferenceExp;
 import io.confluent.ksql.execution.expression.tree.FunctionCall;
+import io.confluent.ksql.execution.function.UdafUtil;
+import io.confluent.ksql.function.FunctionRegistry;
+import io.confluent.ksql.function.KsqlAggregateFunction;
+import io.confluent.ksql.function.KsqlTableFunction;
 import io.confluent.ksql.metastore.model.KeyField;
+import io.confluent.ksql.name.ColumnName;
+import io.confluent.ksql.schema.ksql.Column;
+import io.confluent.ksql.schema.ksql.ColumnRef;
 import io.confluent.ksql.schema.ksql.LogicalSchema;
+import io.confluent.ksql.schema.ksql.SchemaConverters;
+import io.confluent.ksql.schema.ksql.SchemaConverters.ConnectToSqlTypeConverter;
+import io.confluent.ksql.schema.ksql.types.SqlType;
 import io.confluent.ksql.services.KafkaTopicClient;
 import io.confluent.ksql.structured.SchemaKStream;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
@@ -30,20 +44,19 @@ import javax.annotation.concurrent.Immutable;
 public class FlatMapNode extends PlanNode {
 
   private final PlanNode source;
-  private final List<FunctionCall> functionList;
   private final LogicalSchema schema;
+  private final TableFunctionAnalysis tableFunctionAnalysis;
 
   public FlatMapNode(
       final PlanNodeId id,
       final PlanNode source,
-      final List<FunctionCall> functionList,
-      final LogicalSchema schema
+      final LogicalSchema schema,
+      final TableFunctionAnalysis tableFunctionAnalysis
   ) {
     super(id, source.getNodeOutputType());
-
     this.source = Objects.requireNonNull(source, "source");
-    this.functionList = functionList;
     this.schema = schema;
+    this.tableFunctionAnalysis = tableFunctionAnalysis;
   }
 
   @Override
@@ -78,8 +91,44 @@ public class FlatMapNode extends PlanNode {
   @Override
   public SchemaKStream<?> buildStream(final KsqlQueryBuilder builder) {
 
-    final FunctionCall first = functionList.get(0);
+    final QueryContext.Stacker contextStacker = builder.buildNodeContext(getId().toString());
 
-    return getSource().buildStream(builder).flatMap(first);
+    final LogicalSchema outputSchema = buildLogicalSchema(
+        getSchema(),
+        builder.getFunctionRegistry(),
+        tableFunctionAnalysis
+    );
+
+    return getSource().buildStream(builder).flatMap(outputSchema,
+        tableFunctionAnalysis, contextStacker, builder);
+  }
+
+  private LogicalSchema buildLogicalSchema(
+      final LogicalSchema inputSchema,
+      final FunctionRegistry functionRegistry,
+      final TableFunctionAnalysis tableFunctionAnalysis
+  ) {
+    final LogicalSchema.Builder schemaBuilder = LogicalSchema.builder();
+    final List<Column> cols = inputSchema.value();
+
+    schemaBuilder.keyColumns(inputSchema.key());
+
+    //List<ColumnReferenceExp> colList = tableFunctionAnalysis.getColumns();
+    for (int i = 0; i < cols.size(); i++) {
+      schemaBuilder.valueColumn(cols.get(i));
+    }
+
+    final ConnectToSqlTypeConverter converter = SchemaConverters.connectToSqlConverter();
+
+    for (int i = 0; i < tableFunctionAnalysis.getTableFunctions().size(); i++) {
+      final KsqlTableFunction tableFunction =
+          UdafUtil.resolveTableFunction(functionRegistry,
+              tableFunctionAnalysis.getTableFunctions().get(i), inputSchema);
+      final ColumnName colName = ColumnName.udtfColumn(i);
+      final SqlType fieldType = converter.toSqlType(tableFunction.getReturnType());
+      schemaBuilder.valueColumn(colName, fieldType);
+    }
+
+    return schemaBuilder.build();
   }
 }

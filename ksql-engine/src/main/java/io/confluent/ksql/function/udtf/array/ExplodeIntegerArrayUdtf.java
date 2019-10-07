@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.kafka.connect.data.Schema;
 
-public class ExplodeIntegerArrayUdtf extends BaseTableFunction<Integer[], Integer> {
+public class ExplodeIntegerArrayUdtf extends BaseTableFunction<List<Integer>, Integer> {
 
   public ExplodeIntegerArrayUdtf(
       final String functionName,
@@ -33,14 +33,15 @@ public class ExplodeIntegerArrayUdtf extends BaseTableFunction<Integer[], Intege
   }
 
   @Override
-  public KsqlTableFunction<Integer[], Integer> getInstance(
+  public KsqlTableFunction<List<Integer>, Integer> getInstance(
       final TableFunctionArguments tableFunctionArguments) {
-    return null;
+    return new ExplodeIntegerArrayUdtf(functionName, getReturnType(),
+        getArguments(), getDescription());
   }
 
   @Override
-  public List<Integer> flatMap(final Integer[] currentValue) {
-    return Arrays.asList(currentValue);
+  public List<Integer> flatMap(final List<Integer> currentValue) {
+    return currentValue;
   }
 
 }

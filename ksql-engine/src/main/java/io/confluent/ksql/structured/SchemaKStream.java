@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import io.confluent.ksql.GenericRow;
+import io.confluent.ksql.analyzer.TableFunctionAnalysis;
 import io.confluent.ksql.engine.rewrite.StatementRewriteForRowtime;
 import io.confluent.ksql.execution.builder.KsqlQueryBuilder;
 import io.confluent.ksql.execution.context.QueryContext;
@@ -831,25 +832,20 @@ public class SchemaKStream<K> {
   }
 
   public SchemaKStream<K> flatMap(
-      final FunctionCall functionCall,
+      final LogicalSchema outputSchema,
+      final TableFunctionAnalysis tableFunctionAnalysis,
       final QueryContext.Stacker contextStacker,
       final KsqlQueryBuilder ksqlQueryBuilder
   ) {
 
     final KStream<K, GenericRow> mappedStream =
-        StreamFlatMapBuilder.build(kstream, functionCall, functionRegistry, getSchema());
-
-    /*
-    TODO need to change the schema here, convert to return type of table functions
-    and name new field same name as the new field name used in the new select expression
-    created by the tablefunctionrewriter
-
-    Take a look how it is done for the aggregate
-     */
+        StreamFlatMapBuilder.build(kstream,
+            tableFunctionAnalysis.getTableFunctions(), functionRegistry, getSchema());
 
     final StreamFlatMap<KStream<K, GenericRow>> step = ExecutionStepFactory.streamFlatMap(
         contextStacker,
-        sourceStep
+        sourceStep,
+        outputSchema
     );
 
     return new SchemaKStream<>(mappedStream, step, keyFormat, keySerde, keyField,

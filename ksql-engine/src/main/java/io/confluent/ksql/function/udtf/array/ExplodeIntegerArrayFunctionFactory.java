@@ -21,6 +21,7 @@ import io.confluent.ksql.function.TableFunctionFactory;
 import io.confluent.ksql.util.KsqlException;
 import java.util.List;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Schema.Type;
 
 public class ExplodeIntegerArrayFunctionFactory extends TableFunctionFactory {
 
@@ -42,7 +43,17 @@ public class ExplodeIntegerArrayFunctionFactory extends TableFunctionFactory {
       throw new KsqlException("EXPLODE function should have two arguments.");
     }
 
-    return new ExplodeIntegerArrayUdtf(NAME, argTypeList.get(0), argTypeList, "Explodes an array");
+    final Schema param = argTypeList.get(0);
+    if (param.type() != Type.ARRAY) {
+      throw new IllegalArgumentException("Only arrays supported for now");
+    }
+    final Schema valueSchema = param.valueSchema();
+    if (valueSchema.type() != Type.INT64) {
+      throw new IllegalArgumentException("Only arrays of bigint supported for now");
+    }
+
+
+    return new ExplodeIntegerArrayUdtf(NAME, valueSchema, argTypeList, "Explodes an array");
 
   }
 

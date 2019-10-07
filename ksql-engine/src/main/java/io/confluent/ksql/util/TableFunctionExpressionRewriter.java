@@ -44,7 +44,7 @@ public class TableFunctionExpressionRewriter
       final Context<Void> context) {
     final String functionName = node.getName().name();
     if (functionRegistry.isTableFunction(functionName)) {
-      final ColumnName varName = ColumnName.aggregate(variableIndex);
+      final ColumnName varName = ColumnName.udtfColumn(variableIndex);
       variableIndex++;
       return Optional.of(
           new ColumnReferenceExp(node.getLocation(), ColumnRef.of(varName)));

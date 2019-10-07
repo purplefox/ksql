@@ -265,9 +265,10 @@ public class LogicalPlanner {
   private FlatMapNode buildFlatMapNode(
       final PlanNode sourcePlanNode
   ) {
-    final List<FunctionCall> list = tableFunctionAnalysis.getTableFunctions();
+    //final List<FunctionCall> list = tableFunctionAnalysis.getTableFunctions();
 
-    return new FlatMapNode(new PlanNodeId("FlatMap"), sourcePlanNode, list, sourcePlanNode.getSchema());
+    return new FlatMapNode(new PlanNodeId("FlatMap"), sourcePlanNode,
+        sourcePlanNode.getSchema(), tableFunctionAnalysis);
   }
 
   private PlanNode buildSourceNode() {

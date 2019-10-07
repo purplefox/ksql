@@ -22,6 +22,7 @@ import io.confluent.ksql.execution.function.udtf.KudtfFlatMapper;
 import io.confluent.ksql.function.FunctionRegistry;
 import io.confluent.ksql.function.KsqlTableFunction;
 import io.confluent.ksql.schema.ksql.LogicalSchema;
+import java.util.List;
 import org.apache.kafka.streams.kstream.KStream;
 
 public final class StreamFlatMapBuilder {
@@ -31,13 +32,13 @@ public final class StreamFlatMapBuilder {
 
   public static <K> KStream<K, GenericRow> build(
       final KStream<K, GenericRow> source,
-      final FunctionCall functionCall,
+      final List<FunctionCall> functionCalls,
       final FunctionRegistry functionRegistry,
       final LogicalSchema schema) {
 
     final KsqlTableFunction function = UdtfUtil.resolveTableFunction(
         functionRegistry,
-        functionCall,
+        functionCalls.get(0),
         schema
     );
 

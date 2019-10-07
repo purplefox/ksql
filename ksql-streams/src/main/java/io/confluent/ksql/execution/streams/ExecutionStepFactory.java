@@ -145,11 +145,12 @@ public final class ExecutionStepFactory {
 
   public static <K> StreamFlatMap<KStream<K, GenericRow>> streamFlatMap(
       final QueryContext.Stacker stacker,
-      final ExecutionStep<KStream<K, GenericRow>> source
+      final ExecutionStep<KStream<K, GenericRow>> source,
+      final LogicalSchema resultSchema
   ) {
     final QueryContext queryContext = stacker.getQueryContext();
     return new StreamFlatMap<>(
-        source.getProperties().withQueryContext(queryContext),
+        new DefaultExecutionStepProperties(resultSchema, queryContext),
         source
     );
   }

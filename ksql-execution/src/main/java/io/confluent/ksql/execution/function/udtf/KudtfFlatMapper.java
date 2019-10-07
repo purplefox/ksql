@@ -18,6 +18,7 @@ package io.confluent.ksql.execution.function.udtf;
 import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.function.KsqlTableFunction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.kafka.streams.kstream.ValueMapper;
 
@@ -37,16 +38,26 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
   public Iterable<GenericRow> apply(final GenericRow row) {
 
     // TODO proper implementation
-    // UDTF is always on first column for now
-    final Object col0Value = row.getColumnValue(0);
+    // UDTF is always on 3rd column for now
+    final List<Object> col0Value = (List<Object>)row.getColumnValue(3);
     final List<Object> list = tableFunction.flatMap(col0Value);
     final List<GenericRow> rows = new ArrayList<>();
     for (Object val : list) {
-      final GenericRow gr = new GenericRow(new ArrayList<>(row.getColumns()));
-      gr.getColumns().set(0, val);
+      final GenericRow gr =
+          new GenericRow(Arrays.asList(
+              row.getColumnValue(0),
+              row.getColumnValue(1),
+              row.getColumnValue(0),
+              row.getColumnValue(3),
+              val));
       rows.add(gr);
     }
 
+    // For some reason:
+    // col 0: key
+    // col 1
+
+    //return new ArrayList<>(Arrays.asList(new GenericRow(1, 2, 3, 4, 5)));
     return rows;
   }
 }

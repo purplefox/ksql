@@ -80,6 +80,13 @@ class TableFunctionAnalyzer {
       return null;
     }
 
-
+    @Override
+    public Void visitColumnReference(
+        final ColumnReferenceExp node,
+        final Void context
+    ) {
+      tableFunctionAnalysis.addColumn(node);
+      return null;
+    }
   }
 }
