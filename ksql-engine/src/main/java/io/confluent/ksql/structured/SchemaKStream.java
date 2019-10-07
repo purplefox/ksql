@@ -830,9 +830,11 @@ public class SchemaKStream<K> {
     );
   }
 
-  public SchemaKStream<K> flatMap(final FunctionCall functionCall,
+  public SchemaKStream<K> flatMap(
+      final FunctionCall functionCall,
       final QueryContext.Stacker contextStacker,
-      final KsqlQueryBuilder ksqlQueryBuilder) {
+      final KsqlQueryBuilder ksqlQueryBuilder
+  ) {
 
     final KStream<K, GenericRow> mappedStream =
         StreamFlatMapBuilder.build(kstream, functionCall, functionRegistry, getSchema());
