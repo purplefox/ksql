@@ -45,11 +45,12 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
     for (Object val : list) {
       final GenericRow gr =
           new GenericRow(Arrays.asList(
-              row.getColumnValue(0),
-              row.getColumnValue(1),
-              row.getColumnValue(0),
-              row.getColumnValue(3),
-              val));
+              21,
+              22,
+              row.getColumnValue(2), // id
+              24,
+              val // val
+          ));
       rows.add(gr);
     }
 
