@@ -17,10 +17,8 @@ package io.confluent.ksql.execution.streams;
 
 import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.execution.expression.tree.FunctionCall;
-import io.confluent.ksql.execution.function.UdtfUtil;
 import io.confluent.ksql.execution.function.udtf.KudtfFlatMapper;
 import io.confluent.ksql.function.FunctionRegistry;
-import io.confluent.ksql.function.KsqlTableFunction;
 import io.confluent.ksql.schema.ksql.LogicalSchema;
 import java.util.List;
 import org.apache.kafka.streams.kstream.KStream;
@@ -34,15 +32,13 @@ public final class StreamFlatMapBuilder {
       final KStream<K, GenericRow> source,
       final List<FunctionCall> functionCalls,
       final FunctionRegistry functionRegistry,
-      final LogicalSchema schema) {
+      final LogicalSchema inputSchema,
+      final LogicalSchema outputSchema) {
 
-    final KsqlTableFunction function = UdtfUtil.resolveTableFunction(
-        functionRegistry,
-        functionCalls.get(0),
-        schema
-    );
 
-    final KudtfFlatMapper flatMapper = new KudtfFlatMapper(function);
+
+    final KudtfFlatMapper flatMapper = new KudtfFlatMapper(functionCalls, inputSchema,
+        outputSchema, functionRegistry);
 
     return source.flatMapValues(flatMapper);
   }

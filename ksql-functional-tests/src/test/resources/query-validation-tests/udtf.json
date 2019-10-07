@@ -3,8 +3,8 @@
     {
       "name": "udtf",
       "statements": [
-        "CREATE STREAM TEST (ID BIGINT, MY_ARR ARRAY<BIGINT>) WITH (kafka_topic='test_topic', KEY='ID', value_format='JSON');",
-        "CREATE STREAM OUTPUT AS SELECT ID, EXPLODE(MY_ARR) VAL FROM TEST;"
+        "CREATE STREAM TEST (MY_ARR ARRAY<BIGINT>, ID BIGINT) WITH (kafka_topic='test_topic', KEY='ID', value_format='JSON');",
+        "CREATE STREAM OUTPUT AS SELECT EXPLODE(MY_ARR), ID VAL FROM TEST;"
       ],
       "inputs": [
         {"topic": "test_topic", "key": 0, "value": {"ID":  0, "MY_ARR": [1, 2]}},

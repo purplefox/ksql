@@ -840,7 +840,7 @@ public class SchemaKStream<K> {
 
     final KStream<K, GenericRow> mappedStream =
         StreamFlatMapBuilder.build(kstream,
-            tableFunctionAnalysis.getTableFunctions(), functionRegistry, getSchema());
+            tableFunctionAnalysis.getTableFunctions(), functionRegistry, getSchema(), outputSchema);
 
     final StreamFlatMap<KStream<K, GenericRow>> step = ExecutionStepFactory.streamFlatMap(
         contextStacker,

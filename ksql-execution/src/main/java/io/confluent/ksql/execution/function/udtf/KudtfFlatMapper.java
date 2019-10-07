@@ -16,49 +16,83 @@
 package io.confluent.ksql.execution.function.udtf;
 
 import io.confluent.ksql.GenericRow;
+import io.confluent.ksql.execution.expression.tree.ColumnReferenceExp;
+import io.confluent.ksql.execution.expression.tree.FunctionCall;
+import io.confluent.ksql.execution.function.UdtfUtil;
+import io.confluent.ksql.function.FunctionRegistry;
 import io.confluent.ksql.function.KsqlTableFunction;
+import io.confluent.ksql.name.ColumnName;
+import io.confluent.ksql.schema.ksql.ColumnRef;
+import io.confluent.ksql.schema.ksql.LogicalSchema;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.OptionalInt;
 import org.apache.kafka.streams.kstream.ValueMapper;
 
 public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<GenericRow>> {
 
-  private final KsqlTableFunction tableFunction;
-
+  private final List<FunctionCall> udtfCalls;
+  private final LogicalSchema inputSchema;
+  private final LogicalSchema outputSchema;
+  private final FunctionRegistry functionRegistry;
 
   public KudtfFlatMapper(
-      final KsqlTableFunction<?, ?> function
+      final List<FunctionCall> udtfCalls,
+      final LogicalSchema inputSchema,
+      final LogicalSchema outputSchema,
+      final FunctionRegistry functionRegistry
   ) {
-    this.tableFunction = function;
+    this.udtfCalls = udtfCalls;
+    this.inputSchema = inputSchema;
+    this.outputSchema = outputSchema;
+    this.functionRegistry = functionRegistry;
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Iterable<GenericRow> apply(final GenericRow row) {
 
-    // TODO proper implementation
-    // UDTF is always on 3rd column for now
-    final List<Object> col0Value = (List<Object>)row.getColumnValue(3);
-    final List<Object> list = tableFunction.flatMap(col0Value);
+    // Just one udtf for now
+    final FunctionCall functionCall = udtfCalls.get(0);
+    final ColumnReferenceExp exp = (ColumnReferenceExp)functionCall.getArguments().get(0);
+    final ColumnRef columnRef = exp.getReference();
+    final ColumnName columnName = columnRef.name();
+    final OptionalInt indexInInput = inputSchema.valueColumnIndex("TEST." + columnName.name());
+    if (!indexInInput.isPresent()) {
+      throw new IllegalArgumentException("Can't find input column " + columnName);
+    }
+
+    final ColumnName outputColumnName = ColumnName.udtfColumn(0);
+    final OptionalInt outputIndex = outputSchema.valueColumnIndex(outputColumnName);
+    if (!outputIndex.isPresent()) {
+      throw new IllegalArgumentException("Can't find output column " + outputColumnName);
+    }
+
+    final List<Object> unexplodedValue = (List<Object>)row.getColumnValue(indexInInput.getAsInt());
+
+    final KsqlTableFunction tableFunction = UdtfUtil.resolveTableFunction(
+        functionRegistry,
+        functionCall,
+        inputSchema
+    );
+
+    final List<Object> list = tableFunction.flatMap(unexplodedValue);
+
     final List<GenericRow> rows = new ArrayList<>();
     for (Object val : list) {
-      final GenericRow gr =
-          new GenericRow(Arrays.asList(
-              21,
-              22,
-              row.getColumnValue(2), // id
-              24,
-              val // val
-          ));
+//      final GenericRow gr =
+//          new GenericRow(Arrays.asList(
+//              row.getColumnValue(0), //rowtime
+//              row.getColumnValue(1), //rowkey
+//              row.getColumnValue(2), // id
+//              row.getColumnValue(3), // original array before explode
+//              val // val
+//          ));
+      final GenericRow gr = new GenericRow(new ArrayList<>(row.getColumns()));
+      gr.getColumns().set(outputIndex.getAsInt(), val);
       rows.add(gr);
     }
 
-    // For some reason:
-    // col 0: key
-    // col 1
-
-    //return new ArrayList<>(Arrays.asList(new GenericRow(1, 2, 3, 4, 5)));
     return rows;
   }
 }
