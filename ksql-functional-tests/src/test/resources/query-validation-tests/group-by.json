@@ -6,8 +6,8 @@
     {
       "name": "field (stream->table)",
       "statements": [
-        "CREATE STREAM TEST (data VARCHAR) WITH (kafka_topic='test_topic', KEY='data', value_format='DELIMITED');",
-        "CREATE TABLE OUTPUT AS SELECT data, COUNT(*) FROM TEST GROUP BY DATA;"
+        "CREATE STREAM TEST (data VARCHAR, val BIGINT) WITH (kafka_topic='test_topic', KEY='data', value_format='DELIMITED');",
+        "CREATE TABLE OUTPUT AS SELECT data, COUNT(val) FROM TEST GROUP BY DATA;"
       ],
       "inputs": [
         {"topic": "test_topic", "key": "d1", "value": "d1"},

@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import org.apache.kafka.connect.data.Schema;
 
 public final class UdafUtil {
+
   private UdafUtil() {
   }
 

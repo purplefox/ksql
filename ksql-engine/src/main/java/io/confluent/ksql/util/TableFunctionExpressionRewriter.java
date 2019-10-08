@@ -15,7 +15,6 @@
 
 package io.confluent.ksql.util;
 
-import io.confluent.ksql.engine.rewrite.ExpressionTreeRewriter;
 import io.confluent.ksql.engine.rewrite.ExpressionTreeRewriter.Context;
 import io.confluent.ksql.execution.expression.tree.ColumnReferenceExp;
 import io.confluent.ksql.execution.expression.tree.Expression;
@@ -28,13 +27,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public class AggregateExpressionRewriter
+public class TableFunctionExpressionRewriter
     extends VisitParentExpressionVisitor<Optional<Expression>, Context<Void>> {
 
-  private int aggVariableIndex = 0;
+  private int variableIndex = 0;
   private final FunctionRegistry functionRegistry;
 
-  public AggregateExpressionRewriter(final FunctionRegistry functionRegistry) {
+  public TableFunctionExpressionRewriter(final FunctionRegistry functionRegistry) {
     super(Optional.empty());
     this.functionRegistry = functionRegistry;
   }
@@ -42,13 +41,13 @@ public class AggregateExpressionRewriter
   @Override
   public Optional<Expression> visitFunctionCall(
       final FunctionCall node,
-      final ExpressionTreeRewriter.Context<Void> context) {
+      final Context<Void> context) {
     final String functionName = node.getName().name();
-    if (functionRegistry.isAggregate(functionName)) {
-      final ColumnName aggVarName = ColumnName.aggregateColumn(aggVariableIndex);
-      aggVariableIndex++;
+    if (functionRegistry.isTableFunction(functionName)) {
+      final ColumnName varName = ColumnName.udtfColumn(variableIndex);
+      variableIndex++;
       return Optional.of(
-          new ColumnReferenceExp(node.getLocation(), ColumnRef.withoutSource(aggVarName)));
+          new ColumnReferenceExp(node.getLocation(), ColumnRef.of(Optional.empty(), varName)));
     } else {
       final List<Expression> arguments = new ArrayList<>();
       for (final Expression argExpression: node.getArguments()) {
