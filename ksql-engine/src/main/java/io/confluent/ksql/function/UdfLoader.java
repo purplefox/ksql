@@ -261,7 +261,7 @@ public class UdfLoader {
                   udtfAnnotation.name(),
                   path,
                   method.getDeclaringClass());
-              return Optional.of(compiler.compileUDTF(method,
+              return Optional.of(compiler.compileUdtf(method,
                   loader,
                   udtfAnnotation.name(),
                   annotation.description(),

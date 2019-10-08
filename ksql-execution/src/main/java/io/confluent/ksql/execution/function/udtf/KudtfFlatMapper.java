@@ -52,6 +52,7 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
   @Override
   public Iterable<GenericRow> apply(final GenericRow row) {
 
+    // TODO this is a hack use CodeGenRunner to evaluate the expressions that the udtfs work on
     // Just one udtf for now
     final FunctionCall functionCall = udtfCalls.get(0);
     final ColumnReferenceExp exp = (ColumnReferenceExp)functionCall.getArguments().get(0);
@@ -68,7 +69,7 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
       throw new IllegalArgumentException("Can't find output column " + outputColumnName);
     }
 
-    final List<Object> unexplodedValue = (List<Object>)row.getColumnValue(indexInInput.getAsInt());
+    final List<Object> unexplodedValue = row.getColumnValue(indexInInput.getAsInt());
 
     final KsqlTableFunction tableFunction = UdtfUtil.resolveTableFunction(
         functionRegistry,
@@ -80,17 +81,9 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
 
     final List<GenericRow> rows = new ArrayList<>();
     for (Object val : list) {
-//      final GenericRow gr =
-//          new GenericRow(Arrays.asList(
-//              row.getColumnValue(0), //rowtime
-//              row.getColumnValue(1), //rowkey
-//              row.getColumnValue(2), // id
-//              row.getColumnValue(3), // original array before explode
-//              val // val
-//          ));
-      final GenericRow gr = new GenericRow(new ArrayList<>(row.getColumns()));
-      gr.getColumns().set(outputIndex.getAsInt(), val);
-      rows.add(gr);
+      final ArrayList<Object> arrayList = new ArrayList<>(row.getColumns());
+      arrayList.add(val);
+      rows.add(new GenericRow(arrayList));
     }
 
     return rows;

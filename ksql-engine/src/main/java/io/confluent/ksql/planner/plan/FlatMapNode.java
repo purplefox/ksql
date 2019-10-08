@@ -19,23 +19,18 @@ import com.google.common.collect.ImmutableList;
 import io.confluent.ksql.analyzer.TableFunctionAnalysis;
 import io.confluent.ksql.execution.builder.KsqlQueryBuilder;
 import io.confluent.ksql.execution.context.QueryContext;
-import io.confluent.ksql.execution.expression.tree.ColumnReferenceExp;
-import io.confluent.ksql.execution.expression.tree.FunctionCall;
 import io.confluent.ksql.execution.function.UdafUtil;
 import io.confluent.ksql.function.FunctionRegistry;
-import io.confluent.ksql.function.KsqlAggregateFunction;
 import io.confluent.ksql.function.KsqlTableFunction;
 import io.confluent.ksql.metastore.model.KeyField;
 import io.confluent.ksql.name.ColumnName;
 import io.confluent.ksql.schema.ksql.Column;
-import io.confluent.ksql.schema.ksql.ColumnRef;
 import io.confluent.ksql.schema.ksql.LogicalSchema;
 import io.confluent.ksql.schema.ksql.SchemaConverters;
 import io.confluent.ksql.schema.ksql.SchemaConverters.ConnectToSqlTypeConverter;
 import io.confluent.ksql.schema.ksql.types.SqlType;
 import io.confluent.ksql.services.KafkaTopicClient;
 import io.confluent.ksql.structured.SchemaKStream;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
@@ -111,15 +106,15 @@ public class FlatMapNode extends PlanNode {
     final LogicalSchema.Builder schemaBuilder = LogicalSchema.builder();
     final List<Column> cols = inputSchema.value();
 
+    // We copy all the original columns to the output schema
     schemaBuilder.keyColumns(inputSchema.key());
-
-    //List<ColumnReferenceExp> colList = tableFunctionAnalysis.getColumns();
     for (int i = 0; i < cols.size(); i++) {
       schemaBuilder.valueColumn(cols.get(i));
     }
 
     final ConnectToSqlTypeConverter converter = SchemaConverters.connectToSqlConverter();
 
+    // And add new columns representing the exploded values at the end
     for (int i = 0; i < tableFunctionAnalysis.getTableFunctions().size(); i++) {
       final KsqlTableFunction tableFunction =
           UdafUtil.resolveTableFunction(functionRegistry,

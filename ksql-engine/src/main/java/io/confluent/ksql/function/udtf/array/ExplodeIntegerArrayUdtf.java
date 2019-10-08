@@ -18,7 +18,6 @@ package io.confluent.ksql.function.udtf.array;
 import io.confluent.ksql.function.BaseTableFunction;
 import io.confluent.ksql.function.KsqlTableFunction;
 import io.confluent.ksql.function.TableFunctionArguments;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.kafka.connect.data.Schema;
 

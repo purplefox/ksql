@@ -36,7 +36,6 @@ public final class StreamFlatMapBuilder {
       final LogicalSchema outputSchema) {
 
 
-
     final KudtfFlatMapper flatMapper = new KudtfFlatMapper(functionCalls, inputSchema,
         outputSchema, functionRegistry);
 

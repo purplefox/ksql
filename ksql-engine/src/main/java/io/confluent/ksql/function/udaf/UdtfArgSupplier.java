@@ -15,7 +15,6 @@
 
 package io.confluent.ksql.function.udaf;
 
-import io.confluent.ksql.function.KsqlAggregateFunction;
 import io.confluent.ksql.function.KsqlTableFunction;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +26,7 @@ import org.apache.kafka.connect.data.Schema;
  * Used during when creating UDTFS from the ext dir
  */
 public interface UdtfArgSupplier {
+
   KsqlTableFunction apply(List<Schema> args,
       Schema outputType,
       Optional<Metrics> metrics);

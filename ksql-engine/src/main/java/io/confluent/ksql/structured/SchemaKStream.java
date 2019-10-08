@@ -30,7 +30,6 @@ import io.confluent.ksql.execution.context.QueryLoggerUtil;
 import io.confluent.ksql.execution.ddl.commands.KsqlTopic;
 import io.confluent.ksql.execution.expression.tree.ColumnReferenceExp;
 import io.confluent.ksql.execution.expression.tree.Expression;
-import io.confluent.ksql.execution.expression.tree.FunctionCall;
 import io.confluent.ksql.execution.plan.ExecutionStep;
 import io.confluent.ksql.execution.plan.ExecutionStepProperties;
 import io.confluent.ksql.execution.plan.Formats;

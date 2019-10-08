@@ -168,7 +168,7 @@ public class UdfCompiler {
     }
   }
 
-  KsqlTableFunction<?, ?> compileUDTF(final Method method,
+  KsqlTableFunction<?, ?> compileUdtf(final Method method,
                                       final ClassLoader loader,
                                       final String functionName,
                                       final String description,
@@ -211,7 +211,8 @@ public class UdfCompiler {
       final UdtfArgSupplier evaluator = (UdtfArgSupplier)
           scriptEvaluator.createFastEvaluator("return new " + generatedClassName
                   + "(args, aggregateType, outputType, metrics);",
-              UdtfArgSupplier.class, new String[]{"args", "aggregateType", "outputType", "metrics"});
+              UdtfArgSupplier.class,
+              new String[]{"args", "aggregateType", "outputType", "metrics"});
 
       return evaluator.apply(args, returnValue, metrics);
     } catch (final Exception e) {

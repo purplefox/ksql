@@ -113,6 +113,7 @@ class QueryEngine {
     final TableFunctionAnalysis tableFunctionAnalysis =
         queryAnalyzer.analyzeTableFunctions(query, analysis);
 
-    return new LogicalPlanner(config, analysis, aggAnalysis, tableFunctionAnalysis, metaStore).buildPlan();
+    return new LogicalPlanner(config, analysis, aggAnalysis,
+        tableFunctionAnalysis, metaStore).buildPlan();
   }
 }
