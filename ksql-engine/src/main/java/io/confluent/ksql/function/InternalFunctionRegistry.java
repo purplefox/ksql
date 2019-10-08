@@ -129,7 +129,7 @@ public class InternalFunctionRegistry implements MutableFunctionRegistry {
   ) {
     final TableFunctionFactory udtfFactory = udtfs.get(functionName.toUpperCase());
     if (udtfFactory == null) {
-      throw new KsqlException("No aggregate function with name " + functionName + " exists!");
+      throw new KsqlException("No table function with name " + functionName + " exists!");
     }
 
     return udtfFactory.getProperTableFunction(Collections.singletonList(argumentType));

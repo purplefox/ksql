@@ -206,10 +206,6 @@ public class Analysis {
     return withProperties;
   }
 
-  public boolean hasExplode() {
-    return false;
-  }
-
   @Immutable
   public static final class Into {
 
