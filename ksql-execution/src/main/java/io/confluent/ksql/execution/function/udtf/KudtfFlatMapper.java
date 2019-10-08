@@ -52,29 +52,20 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
   @Override
   public Iterable<GenericRow> apply(final GenericRow row) {
 
-    // TODO this is a hack use CodeGenRunner to evaluate the expressions that the udtfs work on
-    // Just one udtf for now
+    // TODO this currently assumes function expression is a simple column ref expression
+    // if we want to support more complex expressions we can use CodeGenRunner stuff
+    // to evaluate expressions in a similar way to how SELECTs are evaluated.
     final FunctionCall functionCall = udtfCalls.get(0);
     final ColumnReferenceExp exp = (ColumnReferenceExp) functionCall.getArguments().get(0);
-    final ColumnRef columnRef = exp.getReference();
-    final ColumnName columnName = columnRef.name();
-
-    final ColumnRef ref = ColumnRef.withoutSource(ColumnName.of(columnName.name()));
-
+    final ColumnName columnName = exp.getReference().name();
+    final ColumnRef ref = ColumnRef.withoutSource(columnName);
     final OptionalInt indexInInput = inputSchema.valueColumnIndex(ref);
     if (!indexInInput.isPresent()) {
       throw new IllegalArgumentException("Can't find input column " + columnName);
     }
 
-    final ColumnName outputColumnName = ColumnName.udtfColumn(0);
-    final ColumnRef refOutput = ColumnRef.withoutSource(outputColumnName);
-    final OptionalInt outputIndex = outputSchema.valueColumnIndex(refOutput);
-    if (!outputIndex.isPresent()) {
-      throw new IllegalArgumentException("Can't find output column " + outputColumnName);
-    }
-
+    // TODO we can cache all this (and above) so we don't look it up each time
     final List<Object> unexplodedValue = row.getColumnValue(indexInInput.getAsInt());
-
     final KsqlTableFunction tableFunction = UdtfUtil.resolveTableFunction(
         functionRegistry,
         functionCall,
@@ -87,6 +78,7 @@ public class KudtfFlatMapper implements ValueMapper<GenericRow, Iterable<Generic
     for (Object val : list) {
       final ArrayList<Object> arrayList = new ArrayList<>(row.getColumns());
       arrayList.add(val);
+      // The exploded result columns always go at the end
       rows.add(new GenericRow(arrayList));
     }
 
