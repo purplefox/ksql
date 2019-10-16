@@ -90,7 +90,7 @@ public class UdfInvokerBenchmark {
   @Benchmark
   public int invokeSimpleMethod(final UdfInvokerState state) {
     try {
-      return (Integer) state.simpleMethod.invoke(state, Integer.valueOf(1));
+      return (Integer) state.simpleMethod.invoke(state, 1);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -107,7 +107,7 @@ public class UdfInvokerBenchmark {
 
   @Benchmark
   public int invokeSimple(final UdfInvokerState state) {
-    return (Integer) state.simple.evaluate(Integer.valueOf(1));
+    return (Integer) state.simple.evaluate(1);
   }
 
   @Benchmark
@@ -115,9 +115,8 @@ public class UdfInvokerBenchmark {
     return (Integer) state.varargs.evaluate(vargs);
   }
 
-  static long[] vargs2 = new long[] {1L, 2L, 3L, 4L, 5L};
-
   static Object[] vargs = new Object[]{1, 1L, 2L, 3L, 4L, 5L};
+  static long[] vargs2 = new long[] {1L, 2L, 3L, 4L, 5L};
 
   public static void main(final String[] args) throws RunnerException {
     final Options opt = new OptionsBuilder()
