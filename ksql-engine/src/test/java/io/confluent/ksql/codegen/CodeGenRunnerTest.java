@@ -842,6 +842,17 @@ public class CodeGenRunnerTest {
     }
 
     @Test
+    public void shouldFoo() {
+        final String query =
+            "SELECT test_udf(test_udf(col5,col5,col5,col5)) FROM codegen_test EMIT CHANGES;";
+
+        final Map<Integer, Object> inputValues = ImmutableMap.of(0, 0);
+        final List<Object> columns = executeExpression(query, inputValues);
+        // test
+        assertThat(columns, equalTo(Collections.singletonList("whatever")));
+    }
+
+    @Test
     public void shouldHandleFunctionWithStruct() {
         // Given:
         final String query =

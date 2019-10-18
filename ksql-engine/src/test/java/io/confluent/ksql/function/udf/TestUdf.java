@@ -15,6 +15,11 @@
 
 package io.confluent.ksql.function.udf;
 
+import com.google.common.collect.ImmutableMap;
+import io.confluent.ksql.schema.ksql.types.SqlType;
+import io.confluent.ksql.schema.ksql.types.SqlTypes;
+import java.util.List;
+import java.util.Map;
 import org.apache.kafka.connect.data.Struct;
 
 @UdfDescription(name="test_udf", description = "test")
@@ -46,5 +51,20 @@ public class TestUdf {
       @UdfParameter(schema = "STRUCT<A VARCHAR>") final Struct struct
   ) {
     return struct.getString("A");
+  }
+
+  @Udf(description = "foobar", schemaProvider = "provideFooSchema")
+  public Map<String, String> foobar(int i, int j, int k, int l) {
+    return ImmutableMap.of("foo", "bar");
+  }
+
+  @UdfSchemaProvider
+  public SqlType provideFooSchema(final List<SqlType> params) {
+    return SqlTypes.map(SqlTypes.BIGINT);
+  }
+
+  @Udf(description = "barfoo")
+  public String foobar(Map<String, Integer> map) {
+    return "whatever";
   }
 }
