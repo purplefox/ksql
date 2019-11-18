@@ -24,21 +24,26 @@ public class ProtocolHandler {
   private static final int MSG = 1836279562; // "msg\n"
   private static final int DAT = 1684108298; // "dat\n"
   private static final int FLO = 1912602624; // "flo\n"
+  private static final int CLS = 1668051722; // "cls\n"
+  private static final int HRT = 1752331274; // "hrt\n"
 
   private final Handler<MessageFrame> messageHandler;
   private final Handler<DataFrame> dataHandler;
   private final Handler<FlowFrame> flowHandler;
+  private final Handler<CloseFrame> closeHandler;
   private final Handler<Buffer> frameWriter;
 
   public ProtocolHandler(
       final Handler<MessageFrame> messageHandler,
       final Handler<DataFrame> dataHandler,
       final Handler<FlowFrame> flowHandler,
+      final Handler<CloseFrame> closeHandler,
       final Handler<Buffer> frameWriter
   ) {
     this.messageHandler = messageHandler;
     this.dataHandler = dataHandler;
     this.flowHandler = flowHandler;
+    this.closeHandler = closeHandler;
     this.frameWriter = frameWriter;
   }
 
@@ -66,6 +71,13 @@ public class ProtocolHandler {
     frameWriter.handle(buff);
   }
 
+  public void writeCloseFrame(int channelID) {
+    Buffer buff = Buffer.buffer(8)
+        .setInt(0, CLS)
+        .setInt(4, channelID);
+    frameWriter.handle(buff);
+  }
+
   public void handleBuffer(Buffer buffer) {
     if (buffer.length() < 8) {
       throw new IllegalStateException("Not enough data");
@@ -84,6 +96,10 @@ public class ProtocolHandler {
         handleFlow(buffer);
         break;
       }
+      case CLS: {
+        handleClose(buffer);
+        break;
+      }
       default:
         throw new IllegalStateException("Invalid type " + type);
     }
@@ -92,7 +108,6 @@ public class ProtocolHandler {
   private void handleMessageFrame(Buffer buffer) {
     Buffer sliced = buffer.slice(4, buffer.length());
     JsonObject payload = new JsonObject(sliced);
-    System.out.println("Got message on server: " + payload);
     messageHandler.handle(new MessageFrame(payload));
   }
 
@@ -108,10 +123,17 @@ public class ProtocolHandler {
     flowHandler.handle(new FlowFrame(channelID, windowSize));
   }
 
+  private void handleClose(Buffer buffer) {
+    int channelID = buffer.getInt(4);
+    closeHandler.handle(new CloseFrame(channelID));
+  }
+
   public static void main(String[] args) {
     System.out.println(toInt('m', 's', 'g', '\n'));
     System.out.println(toInt('d', 'a', 't', '\n'));
     System.out.println(toInt('f', 'l', 'o', '\n'));
+    System.out.println(toInt('c', 'l', 's', '\n'));
+    System.out.println(toInt('h', 'r', 't', '\n'));
   }
 
   private static int toInt(char c1, char c2, char c3, char c4) {
@@ -146,6 +168,15 @@ public class ProtocolHandler {
     FlowFrame(final int channelID, final int windowSize) {
       this.channelID = channelID;
       this.windowSize = windowSize;
+    }
+  }
+
+  public static class CloseFrame {
+
+    public final int channelID;
+
+    CloseFrame(final int channelID) {
+      this.channelID = channelID;
     }
   }
 }

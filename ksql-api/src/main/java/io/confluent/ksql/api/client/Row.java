@@ -15,14 +15,14 @@
 
 package io.confluent.ksql.api.client;
 
-import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscriber;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import io.vertx.core.json.JsonArray;
 
-public interface KSqlConnection {
+public interface Row {
 
-  CompletableFuture<Integer> streamQuery(String query, boolean pull, Subscriber<Row> subscriber);
+  JsonArray columns();
 
-  CompletableFuture<List<Row>> executeQuery(String query);
+  JsonArray columnTypes();
+
+  JsonArray values();
 
 }

@@ -17,6 +17,7 @@ package io.confluent.ksql.api;
 
 import io.confluent.ksql.api.protocol.ChannelHandler;
 import io.confluent.ksql.api.protocol.ProtocolHandler;
+import io.confluent.ksql.api.protocol.ProtocolHandler.CloseFrame;
 import io.confluent.ksql.api.protocol.ProtocolHandler.DataFrame;
 import io.confluent.ksql.api.protocol.ProtocolHandler.FlowFrame;
 import io.confluent.ksql.api.protocol.ProtocolHandler.MessageFrame;
@@ -40,7 +41,7 @@ public abstract class ApiConnection {
       Handler<Buffer> frameWriter
   ) {
     this.protocolHandler = new ProtocolHandler(this::handleMessage,
-        this::handleDataFrame, this::handleFlowFrame, frameWriter
+        this::handleDataFrame, this::handleFlowFrame, this::handleCloseFrame, frameWriter
     );
   }
 
@@ -50,21 +51,11 @@ public abstract class ApiConnection {
 
   protected abstract void runMessageHandler(Runnable messageHandler);
 
-  protected void handleDataFrame(DataFrame dataFrame) {
-    getChannelHandler(dataFrame.channelID).handleData(dataFrame.data);
-  }
-
-  protected void handleFlowFrame(FlowFrame flowFrame) {
-    getChannelHandler(flowFrame.channelID).handleFlow(flowFrame.windowSize);
-  }
-
   protected abstract void handleMessage(MessageFrame messageFrame);
 
   public void writeMessage(JsonObject message) {
     protocolHandler.writeMessageFrame(message);
   }
-
-  protected abstract void handleError(String errorMessage);
 
   protected void registerChannelHandler(int channelID, ChannelHandler channelHandler) {
     channelHandlers.put(channelID, channelHandler);
@@ -76,6 +67,18 @@ public abstract class ApiConnection {
       throw new IllegalStateException("No channel handler for channel " + channelID);
     }
     return handler;
+  }
+
+  private void handleDataFrame(DataFrame dataFrame) {
+    getChannelHandler(dataFrame.channelID).handleData(dataFrame.data);
+  }
+
+  private void handleFlowFrame(FlowFrame flowFrame) {
+    getChannelHandler(flowFrame.channelID).handleFlow(flowFrame.windowSize);
+  }
+
+  private void handleCloseFrame(CloseFrame closeFrame) {
+    getChannelHandler(closeFrame.channelID).handleClose();
   }
 
 }

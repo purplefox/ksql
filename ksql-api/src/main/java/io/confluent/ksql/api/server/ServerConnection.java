@@ -60,7 +60,6 @@ public class ServerConnection extends ApiConnection {
     actionExecutor.execute(messageHandler);
   }
 
-  @Override
   public void handleError(String errMessage) {
     JsonObject response = new JsonObject().put("type", "error")
         .put("message", errMessage);

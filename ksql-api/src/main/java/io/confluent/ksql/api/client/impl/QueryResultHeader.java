@@ -13,16 +13,18 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.client;
+package io.confluent.ksql.api.client.impl;
 
-import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscriber;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import io.vertx.core.json.JsonArray;
 
-public interface KSqlConnection {
+class QueryResultHeader {
 
-  CompletableFuture<Integer> streamQuery(String query, boolean pull, Subscriber<Row> subscriber);
+  final JsonArray columns;
 
-  CompletableFuture<List<Row>> executeQuery(String query);
+  final JsonArray columnTypes;
 
+  QueryResultHeader(JsonArray columns, JsonArray columnTypes) {
+    this.columns = columns;
+    this.columnTypes = columnTypes;
+  }
 }

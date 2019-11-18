@@ -23,5 +23,7 @@ public interface ChannelHandler extends Runnable {
 
   void handleFlow(int windowSize);
 
+  void handleClose();
+
 }
 

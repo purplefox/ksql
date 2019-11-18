@@ -19,10 +19,12 @@ import static org.junit.Assert.assertEquals;
 
 import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
 import io.confluent.ksql.api.client.KSqlClient;
+import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.server.Server;
 import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscriber;
 import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscription;
 import io.confluent.ksql.schema.ksql.LogicalSchema;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,22 +57,35 @@ public class ApiTest {
   }
 
   @Test
-  public void testQuery() throws Throwable {
+  public void testStreamPushQuery() throws Throwable {
 
-    TestSubscriber<JsonObject> subscriber = new TestSubscriber<>();
+    TestSubscriber<Row> subscriber = new TestSubscriber<>();
 
     CompletableFuture<Integer> queryFut =
         client.connectWebsocket("localhost", 8888)
-            .thenCompose(con -> con.streamQuery("select * from line_items", subscriber));
+            .thenCompose(con -> con.streamQuery("select * from line_items", false, subscriber));
 
     Integer res = queryFut.get();
     assertEquals(0, res.intValue());
 
-    List<JsonObject> items = subscriber.waitForItems(10, 10000);
+    List<Row> items = subscriber.waitForItems(10, 10000);
     assertEquals(10, items.size());
+    System.out.println(items);
   }
 
-  class TestQueryMessageHandler implements Runnable {
+  @Test
+  public void testExecuteQuery() throws Throwable {
+
+    CompletableFuture<List<Row>> queryFut =
+        client.connectWebsocket("localhost", 8888)
+            .thenCompose(con -> con.executeQuery("select * from line_items"));
+
+    List<Row> items = queryFut.get();
+    assertEquals(10, items.size());
+    System.out.println(items);
+  }
+
+  static class TestQueryMessageHandler implements Runnable {
 
     private final ApiConnection apiConnection;
     private final JsonObject message;
@@ -85,30 +100,44 @@ public class ApiTest {
 
       Integer channelID = message.getInteger("channel-id");
 
+      JsonArray cols = new JsonArray();
+      JsonArray colTypes = new JsonArray();
+      for (int i = 0; i < 10; i++) {
+        cols.add("col" + i);
+        colTypes.add("STRING");
+      }
+
       JsonObject response = new JsonObject()
           .put("type", "reply")
           .put("request-id", message.getInteger("request-id"))
           .put("query-id", queryID)
-          .put("status", "ok");
+          .put("status", "ok")
+          .put("cols", cols)
+          .put("col-types", colTypes);
 
       apiConnection.writeMessage(response);
 
       for (int i = 0; i < 10; i++) {
-        JsonObject data = jsonObject(i);
+        JsonArray data = jsonArray(i);
         apiConnection.protocolHandler.writeDataFrame(channelID, data.toBuffer());
+      }
+
+      boolean pull = message.getBoolean("pull");
+      if (pull) {
+        apiConnection.protocolHandler.writeCloseFrame(channelID);
       }
     }
   }
 
-  static JsonObject jsonObject(int n) {
-    JsonObject obj = new JsonObject();
+  private static JsonArray jsonArray(int n) {
+    JsonArray arr = new JsonArray();
     for (int i = 0; i < 10; i++) {
-      obj.put(String.valueOf(i), n + "-value-" + i);
+      arr.add(n + "-value-" + i);
     }
-    return obj;
+    return arr;
   }
 
-  class TestSubscriber<T> implements Subscriber<T> {
+  static class TestSubscriber<T> implements Subscriber<T> {
 
     private final List<T> items = new ArrayList<>();
     private Throwable error;
@@ -156,35 +185,5 @@ public class ApiTest {
       throw new TimeoutException("Timed out waiting for items");
     }
   }
-
-  Subscriber<JsonObject> createSubscriber() {
-    return new Subscriber<JsonObject>() {
-      @Override
-      public void onNext(JsonObject item) {
-
-      }
-
-      @Override
-      public void onError(Throwable e) {
-
-      }
-
-      @Override
-      public void onComplete() {
-
-      }
-
-      @Override
-      public void onSchema(LogicalSchema schema) {
-
-      }
-
-      @Override
-      public void onSubscribe(Subscription subscription) {
-
-      }
-    };
-  }
-
 
 }

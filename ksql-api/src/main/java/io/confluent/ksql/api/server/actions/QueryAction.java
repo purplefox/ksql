@@ -28,6 +28,11 @@ public class QueryAction implements ChannelHandler, Runnable {
   public QueryAction(ServerConnection serverConnection, JsonObject message) {
     this.serverConnection = serverConnection;
     this.message = message;
+  }
+
+  @Override
+  public void run() {
+
     Integer channelID = message.getInteger("channel-id");
     if (channelID == null) {
       serverConnection.handleError("Message must contain a channel-id field");
@@ -37,25 +42,7 @@ public class QueryAction implements ChannelHandler, Runnable {
     if (query == null) {
       serverConnection.handleError("Control message must contain a query field");
     }
-  }
 
-  private static int queryIDSequence;
-
-  private static synchronized int generateQueryID() {
-    return queryIDSequence++;
-  }
-
-  @Override
-  public void run() {
-
-    int queryID = generateQueryID();
-
-    JsonObject response = new JsonObject();
-    response.put("request-id", message.getInteger("request-id"));
-    response.put("query-id", queryID);
-    response.put("status", "ok");
-
-    serverConnection.writeMessage(response);
 
   }
 
@@ -65,6 +52,11 @@ public class QueryAction implements ChannelHandler, Runnable {
 
   @Override
   public void handleFlow(int windowSize) {
+  }
+
+  @Override
+  public void handleClose() {
+
   }
 
   /*    final List<ParsedStatement> statements = ksqlEngine.parse(queryString);
