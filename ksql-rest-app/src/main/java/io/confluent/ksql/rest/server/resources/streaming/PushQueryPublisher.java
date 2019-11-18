@@ -36,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("UnstableApiUsage")
-class PushQueryPublisher implements Flow.Publisher<Collection<StreamedRow>> {
+public class PushQueryPublisher implements Flow.Publisher<Collection<StreamedRow>> {
 
   private static final Logger log = LoggerFactory.getLogger(PushQueryPublisher.class);
 
