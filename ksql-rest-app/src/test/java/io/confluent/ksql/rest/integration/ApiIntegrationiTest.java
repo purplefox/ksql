@@ -165,6 +165,8 @@ public class ApiIntegrationiTest {
   @Test
   public void testExecutePullQuery() throws Throwable {
 
+    Thread.sleep(2000);
+
     CompletableFuture<List<Row>> queryFut =
         client.connectWebsocket("localhost", 8888)
             .thenCompose(con -> con.executeQuery(
@@ -178,6 +180,8 @@ public class ApiIntegrationiTest {
 
   @Test
   public void testStreamPushQuery() throws Throwable {
+
+    Thread.sleep(2000);
 
     TestSubscriber<Row> subscriber = new TestSubscriber<>();
 

@@ -29,6 +29,9 @@ import io.confluent.ksql.rest.server.execution.StaticQueryExecutor;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory.DefaultServiceContextFactory;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory.UserServiceContextFactory;
+import io.confluent.ksql.schema.ksql.Column;
+import io.confluent.ksql.schema.ksql.FormatOptions;
+import io.confluent.ksql.schema.ksql.LogicalSchema;
 import io.confluent.ksql.security.KsqlSecurityExtension;
 import io.confluent.ksql.services.ServiceContext;
 import io.confluent.ksql.statement.ConfiguredStatement;
@@ -37,6 +40,7 @@ import io.confluent.ksql.util.TransientQueryMetadata;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.security.Principal;
 import java.util.Iterator;
@@ -70,6 +74,7 @@ public class ServerQueryAction extends QueryAction {
     Principal principal = new DummyPrincipal();
     ConfiguredStatement<Query> configured = createStatement(queryString);
     ServiceContext serviceContext = createServiceContext(principal);
+    Query query = configured.getStatement();
     if (configured.getStatement().isStatic()) {
       return createStaticQueryRowProvider(serviceContext, configured);
     } else {
@@ -166,6 +171,39 @@ public class ServerQueryAction extends QueryAction {
     public boolean complete() {
       return false;
     }
+
+    @Override
+    public JsonArray colNames() {
+      return colNamesFromSchema(queryMetadata.getLogicalSchema());
+    }
+
+    @Override
+    public JsonArray colTypes() {
+      return colTypesFromSchema(queryMetadata.getLogicalSchema());
+    }
+
+    @Override
+    public int queryID() {
+      return 123; // TODO
+    }
+  }
+
+  private static JsonArray colTypesFromSchema(LogicalSchema logicalSchema) {
+    List<Column> cols = logicalSchema.value();
+    JsonArray colTypes = new JsonArray();
+    for (Column col : cols) {
+      colTypes.add(col.type().toString(FormatOptions.none()));
+    }
+    return colTypes;
+  }
+
+  private static JsonArray colNamesFromSchema(LogicalSchema logicalSchema) {
+    List<Column> cols = logicalSchema.value();
+    JsonArray colNames = new JsonArray();
+    for (Column col : cols) {
+      colNames.add(col.name().name());
+    }
+    return colNames;
   }
 
   private static class PullQueryRowProvider implements RowProvider {
@@ -201,6 +239,21 @@ public class ServerQueryAction extends QueryAction {
     @Override
     public boolean complete() {
       return available() == 0;
+    }
+
+    @Override
+    public JsonArray colNames() {
+      return colNamesFromSchema(results.getSchema());
+    }
+
+    @Override
+    public JsonArray colTypes() {
+      return colTypesFromSchema(results.getSchema());
+    }
+
+    @Override
+    public int queryID() {
+      return 123; // TODO
     }
   }
 
