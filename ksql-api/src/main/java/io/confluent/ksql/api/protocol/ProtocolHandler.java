@@ -63,11 +63,11 @@ public class ProtocolHandler {
     frameWriter.handle(buff);
   }
 
-  public void writeFlowFrame(int channelID, int windowSize) {
+  public void writeFlowFrame(int channelID, int bytes) {
     Buffer buff = Buffer.buffer(16)
         .setInt(0, FLO)
         .setInt(4, channelID)
-        .setInt(8, windowSize);
+        .setInt(8, bytes);
     frameWriter.handle(buff);
   }
 
@@ -119,8 +119,8 @@ public class ProtocolHandler {
 
   private void handleFlow(Buffer buffer) {
     int channelID = buffer.getInt(4);
-    int windowSize = buffer.getInt(8);
-    flowHandler.handle(new FlowFrame(channelID, windowSize));
+    int bytes = buffer.getInt(8);
+    flowHandler.handle(new FlowFrame(channelID, bytes));
   }
 
   private void handleClose(Buffer buffer) {
@@ -163,11 +163,11 @@ public class ProtocolHandler {
   public static class FlowFrame {
 
     public final int channelID;
-    public final int windowSize;
+    public final int bytes;
 
-    FlowFrame(final int channelID, final int windowSize) {
+    FlowFrame(final int channelID, final int bytes) {
       this.channelID = channelID;
-      this.windowSize = windowSize;
+      this.bytes = bytes;
     }
   }
 

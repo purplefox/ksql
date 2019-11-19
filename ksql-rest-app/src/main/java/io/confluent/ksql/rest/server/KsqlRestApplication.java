@@ -27,6 +27,8 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.confluent.ksql.ServiceInfo;
+import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
+import io.confluent.ksql.api.server.ApiServer;
 import io.confluent.ksql.engine.KsqlEngine;
 import io.confluent.ksql.function.InternalFunctionRegistry;
 import io.confluent.ksql.function.MutableFunctionRegistry;
@@ -41,6 +43,7 @@ import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
 import io.confluent.ksql.query.id.HybridQueryIdGenerator;
 import io.confluent.ksql.rest.entity.CommandId;
 import io.confluent.ksql.rest.entity.KsqlErrorMessage;
+import io.confluent.ksql.rest.server.apiactions.QueryAction;
 import io.confluent.ksql.rest.server.computation.Command;
 import io.confluent.ksql.rest.server.computation.CommandQueue;
 import io.confluent.ksql.rest.server.computation.CommandRunner;
@@ -81,6 +84,7 @@ import io.confluent.ksql.version.metrics.VersionCheckerAgent;
 import io.confluent.ksql.version.metrics.collector.KsqlModuleType;
 import io.confluent.rest.RestConfig;
 import io.confluent.rest.validation.JacksonMessageBodyProvider;
+import io.vertx.core.Vertx;
 import java.io.Console;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -89,6 +93,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -148,6 +153,8 @@ public final class KsqlRestApplication extends ExecutableApplication<KsqlRestCon
   private final List<KsqlConfigurable> configurables;
   private final Consumer<KsqlConfig> rocksDBConfigSetterHandler;
 
+  private final ApiServer apiServer;
+
   public static SourceName getCommandsStreamName() {
     return COMMANDS_STREAM_NAME;
   }
@@ -196,6 +203,13 @@ public final class KsqlRestApplication extends ExecutableApplication<KsqlRestCon
     this.configurables = requireNonNull(configurables, "configurables");
     this.rocksDBConfigSetterHandler =
         requireNonNull(rocksDBConfigSetterHandler, "rocksDBConfigSetterHandler");
+
+    Vertx vertx = Vertx.vertx();
+    Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
+    messageHandlerFactories.put("query", (conn, message) ->
+        new QueryAction(conn, message, ksqlEngine, ksqlConfig, securityExtension, vertx)
+    );
+    apiServer = new ApiServer(messageHandlerFactories, vertx);
   }
 
   @Override
@@ -224,6 +238,9 @@ public final class KsqlRestApplication extends ExecutableApplication<KsqlRestCon
       versionCheckerAgent.start(KsqlModuleType.SERVER, metricsProperties);
     }
     displayWelcomeMessage();
+
+    apiServer.start().get();
+    System.out.println("*** Started API server");
   }
 
   @VisibleForTesting

@@ -35,6 +35,7 @@ class TransientQueryQueue {
   private final BlockingQueue<KeyValue<String, GenericRow>> rowQueue =
       new LinkedBlockingQueue<>(100);
 
+
   TransientQueryQueue(final KStream<?, GenericRow> kstream, final OptionalInt limit) {
     this.callback = limit.isPresent()
         ? new LimitedQueueCallback(limit.getAsInt())

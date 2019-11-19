@@ -57,8 +57,26 @@ public abstract class ApiConnection {
     protocolHandler.writeMessageFrame(message);
   }
 
+  public void writeDataFrame(int channelID, Buffer buffer) {
+    protocolHandler.writeDataFrame(channelID, buffer);
+  }
+
+  public void writeFlowFrame(int channelID, int bytes) {
+    protocolHandler.writeFlowFrame(channelID, bytes);
+  }
+
+  public void writeCloseFrame(int channelID) {
+    protocolHandler.writeCloseFrame(channelID);
+  }
+
   protected void registerChannelHandler(int channelID, ChannelHandler channelHandler) {
     channelHandlers.put(channelID, channelHandler);
+  }
+
+  public void handleError(String errMessage) {
+    JsonObject response = new JsonObject().put("type", "error")
+        .put("message", errMessage);
+    protocolHandler.writeMessageFrame(response);
   }
 
   private ChannelHandler getChannelHandler(int channelID) {
@@ -74,7 +92,7 @@ public abstract class ApiConnection {
   }
 
   private void handleFlowFrame(FlowFrame flowFrame) {
-    getChannelHandler(flowFrame.channelID).handleFlow(flowFrame.windowSize);
+    getChannelHandler(flowFrame.channelID).handleFlow(flowFrame.bytes);
   }
 
   private void handleCloseFrame(CloseFrame closeFrame) {

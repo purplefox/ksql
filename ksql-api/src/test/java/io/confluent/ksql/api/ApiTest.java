@@ -20,10 +20,10 @@ import static org.junit.Assert.assertEquals;
 import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
 import io.confluent.ksql.api.client.KSqlClient;
 import io.confluent.ksql.api.client.Row;
-import io.confluent.ksql.api.server.Server;
-import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscriber;
-import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscription;
-import io.confluent.ksql.schema.ksql.LogicalSchema;
+import io.confluent.ksql.api.flow.Subscriber;
+import io.confluent.ksql.api.flow.Subscription;
+import io.confluent.ksql.api.server.ApiServer;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
@@ -38,7 +38,8 @@ import org.junit.Test;
 
 public class ApiTest {
 
-  private Server server;
+  private Vertx vertx;
+  private ApiServer server;
   private KSqlClient client;
 
   @Before
@@ -47,7 +48,8 @@ public class ApiTest {
     Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
     messageHandlerFactories.put("query", TestQueryMessageHandler::new);
 
-    server = new Server(messageHandlerFactories);
+    vertx = Vertx.vertx();
+    server = new ApiServer(messageHandlerFactories, vertx);
     server.start().get();
     client = KSqlClient.client();
   }
@@ -119,12 +121,12 @@ public class ApiTest {
 
       for (int i = 0; i < 10; i++) {
         JsonArray data = jsonArray(i);
-        apiConnection.protocolHandler.writeDataFrame(channelID, data.toBuffer());
+        apiConnection.writeDataFrame(channelID, data.toBuffer());
       }
 
       boolean pull = message.getBoolean("pull");
       if (pull) {
-        apiConnection.protocolHandler.writeCloseFrame(channelID);
+        apiConnection.writeCloseFrame(channelID);
       }
     }
   }
@@ -161,10 +163,6 @@ public class ApiTest {
     @Override
     public synchronized void onComplete() {
       completed = true;
-    }
-
-    @Override
-    public void onSchema(LogicalSchema schema) {
     }
 
     @Override

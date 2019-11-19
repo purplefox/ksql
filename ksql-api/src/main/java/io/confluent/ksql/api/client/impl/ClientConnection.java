@@ -18,12 +18,11 @@ package io.confluent.ksql.api.client.impl;
 import io.confluent.ksql.api.ApiConnection;
 import io.confluent.ksql.api.client.KSqlConnection;
 import io.confluent.ksql.api.client.Row;
+import io.confluent.ksql.api.flow.Subscriber;
+import io.confluent.ksql.api.flow.Subscription;
 import io.confluent.ksql.api.impl.Utils;
 import io.confluent.ksql.api.protocol.ChannelHandler;
 import io.confluent.ksql.api.protocol.ProtocolHandler.MessageFrame;
-import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscriber;
-import io.confluent.ksql.rest.server.resources.streaming.Flow.Subscription;
-import io.confluent.ksql.schema.ksql.LogicalSchema;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -32,15 +31,20 @@ import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+// CHECKSTYLE_RULES.OFF: ClassDataAbstractionCoupling
 public class ClientConnection extends ApiConnection implements KSqlConnection {
 
+  // CHECKSTYLE_RULES.ON: ClassDataAbstractionCoupling
   private final Map<Integer, Consumer<JsonObject>> requestMap = new ConcurrentHashMap<>();
-  private int channelIDSequence;
-  private int requestIDSequence;
+  private final AtomicInteger channelIDSequence = new AtomicInteger();
+  private final AtomicInteger requestIDSequence = new AtomicInteger();
 
   public ClientConnection(Handler<Buffer> frameWriter) {
     super(frameWriter);
@@ -65,10 +69,9 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
   @Override
   public CompletableFuture<Integer> streamQuery(String query, boolean pull,
       Subscriber<Row> subscriber) {
-    QueryChannelHandler handler = new QueryChannelHandler(subscriber);
-    int channelID = channelIDSequence++;
-    int requestID = requestIDSequence++;
-    registerChannelHandler(channelID, handler);
+    int channelID = channelIDSequence.getAndIncrement();
+    int requestID = requestIDSequence.getAndIncrement();
+
     JsonObject message = new JsonObject()
         .put("type", "query")
         .put("query", query)
@@ -76,11 +79,8 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
         .put("request-id", requestID)
         .put("pull", pull);
     Promise<Integer> promise = Promise.promise();
-    requestMap.put(requestID, jo -> handleQueryReply(promise, jo, handler));
+    requestMap.put(requestID, jo -> handleQueryReply(promise, jo, subscriber, channelID));
     writeMessage(message);
-    // Race here! - if tokens are requested from subscriber before message has been writen and
-    // channel setup
-    subscriber.onSubscribe(new QuerySubscription());
     return Utils.convertFuture(promise.future());
   }
 
@@ -101,7 +101,7 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
   }
 
   private void handleQueryReply(Promise<Integer> promise, JsonObject reply,
-      QueryChannelHandler handler) {
+      Subscriber<Row> subscriber, int channelID) {
     String status = reply.getString("status");
     if (status == null) {
       throw new IllegalStateException("No status in reply");
@@ -120,7 +120,12 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
       if (colTypes == null) {
         throw new IllegalStateException("No col-types in query reply");
       }
-      handler.setHeader(new QueryResultHeader(columns, colTypes));
+
+      QueryChannelHandler handler = new QueryChannelHandler(subscriber, channelID,
+          new QueryResultHeader(columns, colTypes));
+      registerChannelHandler(channelID, handler);
+      subscriber.onSubscribe(new QuerySubscription(handler));
+
       promise.complete(queryID);
     } else if ("err".equals(status)) {
       String errMessage = reply.getString("err-msg");
@@ -171,33 +176,64 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
     }
 
     @Override
-    public void onSchema(LogicalSchema schema) {
-    }
-
-    @Override
     public synchronized void onSubscribe(Subscription subscription) {
       this.subscription = subscription;
     }
   }
 
-  static class QueryChannelHandler implements ChannelHandler {
+  class QueryChannelHandler implements ChannelHandler {
 
     private final Subscriber<Row> subscriber;
-    private QueryResultHeader header;
+    private final int channelID;
+    private final Queue<Buffer> incomingData = new ConcurrentLinkedQueue<>();
+    private final QueryResultHeader header;
+    private long tokenDemand;
+    private boolean closed;
 
-    QueryChannelHandler(Subscriber<Row> subscriber) {
+    QueryChannelHandler(Subscriber<Row> subscriber, int channelID,
+        QueryResultHeader queryResultHeader) {
       this.subscriber = subscriber;
+      this.channelID = channelID;
+      this.header = queryResultHeader;
     }
 
     @Override
-    public synchronized void handleData(Buffer data) {
-      JsonArray jsonArray = new JsonArray(data);
+    public synchronized void handleData(Buffer buffer) {
+      if (closed) {
+        return;
+      }
+      if (tokenDemand > 0) {
+        deliverBuffer(buffer);
+      } else {
+        incomingData.add(buffer);
+      }
+    }
+
+    synchronized void deliverBuffer(Buffer buffer) {
+      JsonArray jsonArray = new JsonArray(buffer);
       Row row = new RowImpl(jsonArray, header);
+      tokenDemand--;
       subscriber.onNext(row);
     }
 
+    synchronized void request(long n) {
+      tokenDemand += n;
+      long tokens = tokenDemand; // Take copy to prevent infinite loop
+      while (!incomingData.isEmpty() && tokens > 0) {
+        Buffer buffer = incomingData.remove();
+        ClientConnection.this.writeFlowFrame(channelID, buffer.length());
+        deliverBuffer(buffer);
+        tokens--;
+      }
+    }
+
+    synchronized void close() {
+      closed = true;
+      // TODO handle the close properly
+    }
+
     @Override
-    public void handleFlow(int windowSize) {
+    public void handleFlow(int bytes) {
     }
 
     @Override
@@ -209,20 +245,24 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
     public void run() {
     }
 
-    synchronized void setHeader(QueryResultHeader header) {
-      this.header = header;
-    }
   }
-
 
   private static class QuerySubscription implements Subscription {
 
+    private final QueryChannelHandler queryChannelHandler;
+
+    public QuerySubscription(QueryChannelHandler queryChannelHandler) {
+      this.queryChannelHandler = queryChannelHandler;
+    }
+
     @Override
     public void cancel() {
+      queryChannelHandler.close();
     }
 
     @Override
     public void request(long n) {
+      queryChannelHandler.request(n);
     }
   }
 

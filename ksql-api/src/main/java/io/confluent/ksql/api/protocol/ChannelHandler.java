@@ -21,7 +21,7 @@ public interface ChannelHandler extends Runnable {
 
   void handleData(Buffer data);
 
-  void handleFlow(int windowSize);
+  void handleFlow(int bytes);
 
   void handleClose();
 

@@ -27,23 +27,23 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server {
+public class ApiServer {
 
   private ExecutorService executorService;
 
-  private Map<String, MessageHandlerFactory> messageHandlerFactories;
+  private final Map<String, MessageHandlerFactory> messageHandlerFactories;
+  private final Vertx vertx;
 
-  public Server(Map<String, MessageHandlerFactory> messageHandlerFactories) {
+  public ApiServer(Map<String, MessageHandlerFactory> messageHandlerFactories,
+      Vertx vertx) {
     this.messageHandlerFactories = messageHandlerFactories;
+    this.vertx = vertx;
   }
 
   public CompletableFuture<Void> start() {
     executorService = Executors.newFixedThreadPool(100);
     System.out.println("Creating vertx");
-    Vertx vertx = Vertx.vertx();
-    vertx.exceptionHandler(t -> {
-      t.printStackTrace();
-    });
+    vertx.exceptionHandler(Throwable::printStackTrace);
     System.out.println("Created vertx");
     Promise<HttpServer> promise = Promise.promise();
     vertx.createHttpServer().websocketHandler(this::handleWebsocket)

@@ -59,6 +59,7 @@ public class KsqlServerMain {
       final Executable executable = createExecutable(
           properties, queriesFile, installDir, ksqlConfig);
       new KsqlServerMain(executable).tryStartApp();
+
     } catch (final Exception e) {
       log.error("Failed to start KSQL", e);
       System.exit(-1);

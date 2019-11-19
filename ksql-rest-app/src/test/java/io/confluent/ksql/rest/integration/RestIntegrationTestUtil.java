@@ -51,12 +51,12 @@ import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.glassfish.jersey.internal.util.Base64;
 
-final class RestIntegrationTestUtil {
+public final class RestIntegrationTestUtil {
 
   private RestIntegrationTestUtil() {
   }
 
-  static List<KsqlEntity> makeKsqlRequest(final TestKsqlRestApp restApp, final String sql) {
+  public static List<KsqlEntity> makeKsqlRequest(final TestKsqlRestApp restApp, final String sql) {
     return makeKsqlRequest(restApp, sql, Optional.empty());
   }
 
@@ -104,7 +104,7 @@ final class RestIntegrationTestUtil {
    * @param cmdSeqNum optional sequence number of previous command
    * @return the response payload
    */
-  static String rawRestQueryRequest(
+  public static String rawRestQueryRequest(
       final TestKsqlRestApp restApp,
       final String sql,
       final Optional<Long> cmdSeqNum
@@ -134,7 +134,8 @@ final class RestIntegrationTestUtil {
     }
   }
 
-  static void createStreams(final TestKsqlRestApp restApp, final String streamName, final String topicName) {
+  public static void createStreams(final TestKsqlRestApp restApp, final String streamName,
+      final String topicName) {
     final Client client = TestKsqlRestApp.buildClient();
 
     try (final Response response = client
@@ -201,7 +202,7 @@ final class RestIntegrationTestUtil {
     }
   }
 
-  static WebSocketClient makeWsRequest(
+  public static WebSocketClient makeWsRequest(
       final URI baseUri,
       final String sql,
       final Object listener,

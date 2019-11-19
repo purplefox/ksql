@@ -13,16 +13,9 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.client;
+package io.confluent.ksql.api.flow;
 
-import io.confluent.ksql.api.flow.Subscriber;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+public interface Publisher<T> {
 
-public interface KSqlConnection {
-
-  CompletableFuture<Integer> streamQuery(String query, boolean pull, Subscriber<Row> subscriber);
-
-  CompletableFuture<List<Row>> executeQuery(String query);
-
+  void subscribe(Subscriber<T> subscriber);
 }
