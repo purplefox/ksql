@@ -18,7 +18,7 @@ package io.confluent.ksql.rest.server.apiactions;
 import com.google.common.collect.ImmutableMap;
 import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.api.ApiConnection;
-import io.confluent.ksql.api.protocol.ChannelHandler;
+import io.confluent.ksql.api.server.actions.QueryAction;
 import io.confluent.ksql.engine.KsqlEngine;
 import io.confluent.ksql.parser.KsqlParser.ParsedStatement;
 import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
@@ -37,7 +37,6 @@ import io.confluent.ksql.util.TransientQueryMetadata;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.security.Principal;
 import java.util.Iterator;
@@ -46,104 +45,45 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import org.apache.kafka.streams.KeyValue;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public class QueryAction implements ChannelHandler, Runnable {
+public class ServerQueryAction extends QueryAction {
 
-  private static final Logger log = LoggerFactory.getLogger(QueryAction.class);
-
-  private final ApiConnection apiConnection;
-  private final JsonObject message;
   private final KsqlEngine ksqlEngine;
   private final KsqlConfig ksqlConfig;
   private final KsqlSecurityExtension securityExtension;
   private final UserServiceContextFactory serviceContextFactory;
   private final DefaultServiceContextFactory defaultServiceContextFactory;
 
-  private int channelID;
-  private int bytes;
-  private Buffer holding;
-  private RowProvider rowProvider;
-  private final Vertx vertx;
-  private boolean closed;
-
-  public QueryAction(ApiConnection apiConnection, JsonObject message,
-      KsqlEngine ksqlEngine, KsqlConfig ksqlConfig,
-      KsqlSecurityExtension securityExtension,
-      Vertx vertx) {
-    this.apiConnection = apiConnection;
-    this.message = message;
+  public ServerQueryAction(ApiConnection apiConnection,
+      JsonObject message, Vertx vertx, KsqlEngine ksqlEngine, KsqlConfig ksqlConfig,
+      KsqlSecurityExtension ksqlSecurityExtension) {
+    super(apiConnection, message, vertx);
     this.ksqlEngine = ksqlEngine;
     this.ksqlConfig = ksqlConfig;
-    this.securityExtension = securityExtension;
-    this.defaultServiceContextFactory = RestServiceContextFactory::create;
+    this.securityExtension = ksqlSecurityExtension;
     this.serviceContextFactory = RestServiceContextFactory::create;
-    this.vertx = vertx;
+    this.defaultServiceContextFactory = RestServiceContextFactory::create;
   }
 
   @Override
-  public synchronized void run() {
-
-    Integer channelID = message.getInteger("channel-id");
-    if (channelID == null) {
-      apiConnection.handleError("Message must contain a channel-id field");
-      return;
-    }
-    this.channelID = channelID;
-    String queryString = message.getString("query");
-    if (queryString == null) {
-      apiConnection.handleError("Control message must contain a query field");
-    }
-
+  protected RowProvider createRowProvider(String queryString) {
     Principal principal = new DummyPrincipal();
-
     ConfiguredStatement<Query> configured = createStatement(queryString);
     ServiceContext serviceContext = createServiceContext(principal);
-
     if (configured.getStatement().isStatic()) {
-      this.rowProvider = handleStaticQuery(serviceContext, configured);
+      return createStaticQueryRowProvider(serviceContext, configured);
     } else {
-      this.rowProvider = handleNonStaticQuery(serviceContext, configured);
+      return createNonStaticQueryRowProvider(serviceContext, configured);
     }
-
-    this.bytes = 1024 * 1024; // Initial window size;
-
-    int queryID = 123;
-    JsonArray cols = new JsonArray().add("a").add("b");
-    JsonArray colTypes = new JsonArray().add("STRING").add("STRING");
-
-    JsonObject response = new JsonObject()
-        .put("type", "reply")
-        .put("request-id", message.getInteger("request-id"))
-        .put("query-id", queryID)
-        .put("status", "ok")
-        .put("cols", cols)
-        .put("col-types", colTypes);
-
-    apiConnection.writeMessage(response);
-
-    /*
-    TODO this is a hack!
-    Query messages are currently put on a blocking queue
-    Ideally Kafka Streams would support back pressure and would directly publish to us
-    (like a reactive streams publisher), but that's not going to happen easily.
-    Instead of using a blocking queue - the KS foreach should add directly onto the QueryAction and
-    block when there are no window bytes available
-    But for now... we poll. I'm sorry, I'm really, really sorry :((
-    */
-    setDeliverTimer();
-
-    rowProvider.start();
   }
 
-  private RowProvider handleStaticQuery(ServiceContext serviceContext,
+  private RowProvider createStaticQueryRowProvider(ServiceContext serviceContext,
       ConfiguredStatement<Query> configured) {
     TableRowsEntity result = StaticQueryExecutor.execute(configured, ksqlEngine, serviceContext);
     return new PullQueryRowProvider(result);
   }
 
-  private RowProvider handleNonStaticQuery(ServiceContext serviceContext,
+  private RowProvider createNonStaticQueryRowProvider(ServiceContext serviceContext,
       ConfiguredStatement<Query> configured) {
     TransientQueryMetadata queryMetadata =
         (TransientQueryMetadata) ksqlEngine.execute(serviceContext, configured)
@@ -152,90 +92,17 @@ public class QueryAction implements ChannelHandler, Runnable {
     return new PushQueryRowProvider(queryMetadata);
   }
 
-  private synchronized void setDeliverTimer() {
-    if (closed) {
-      return;
-    }
-    vertx.setTimer(100, h -> {
-      checkDeliver();
-      setDeliverTimer();
-    });
-  }
-
-  @Override
-  public void handleData(Buffer data) {
-  }
-
-  @Override
-  public synchronized void handleFlow(int bytes) {
-    this.bytes += bytes;
-    checkDeliver();
-  }
-
-  private synchronized void checkDeliver() {
-    if (closed) {
-      return;
-    }
-    doCheck();
-    checkComplete();
-  }
-
-  private synchronized void doCheck() {
-    if (bytes == 0) {
-      return;
-    }
-    if (holding != null) {
-      if (this.bytes >= holding.length()) {
-        sendBuffer(holding);
-        holding = null;
-      } else {
-        return;
-      }
-    }
-    int num = rowProvider.available();
-    for (int i = 0; i < num; i++) {
-      Buffer buff = rowProvider.poll();
-      if (bytes >= buff.length()) {
-        sendBuffer(buff);
-      } else {
-        holding = buff;
-        break;
-      }
-    }
-  }
-
-  private void checkComplete() {
-    if (rowProvider.complete()) {
-      apiConnection.writeCloseFrame(channelID);
-      close();
-    }
-  }
-
-  private synchronized void close() {
-    closed = true;
-  }
-
-  private void sendBuffer(Buffer buffer) {
-    apiConnection.writeDataFrame(channelID, buffer);
-    bytes -= buffer.length();
-  }
-
-  @Override
-  public void handleClose() {
-    close();
-  }
-
   private ConfiguredStatement<Query> createStatement(String queryString) {
     final List<ParsedStatement> statements = ksqlEngine.parse(queryString);
     if ((statements.size() != 1)) {
-      apiConnection.handleError(
+      handleError(
           String
               .format("Expected exactly one KSQL statement; found %d instead", statements.size()));
     }
     PreparedStatement<?> ps = ksqlEngine.prepare(statements.get(0));
     final Statement statement = ps.getStatement();
     if (!(statement instanceof Query)) {
-      apiConnection.handleError("Invalid query: " + queryString);
+      handleError("Invalid query: " + queryString);
     }
     @SuppressWarnings("unchecked")
     PreparedStatement<Query> psq = (PreparedStatement<Query>) ps;
@@ -265,23 +132,12 @@ public class QueryAction implements ChannelHandler, Runnable {
         .get();
   }
 
-  private interface RowProvider {
-
-    int available();
-
-    Buffer poll();
-
-    void start();
-
-    boolean complete();
-  }
-
-  class PushQueryRowProvider implements RowProvider {
+  private static class PushQueryRowProvider implements RowProvider {
 
     private final TransientQueryMetadata queryMetadata;
     private final BlockingQueue<KeyValue<String, GenericRow>> queue;
 
-    public PushQueryRowProvider(TransientQueryMetadata queryMetadata) {
+    PushQueryRowProvider(TransientQueryMetadata queryMetadata) {
       this.queryMetadata = queryMetadata;
       this.queue = queryMetadata.getRowQueue();
     }
@@ -294,9 +150,11 @@ public class QueryAction implements ChannelHandler, Runnable {
     @Override
     public Buffer poll() {
       KeyValue<String, GenericRow> kv = queue.poll();
+      if (kv == null) {
+        throw new IllegalStateException("No row to poll");
+      }
       GenericRow row = kv.value;
-      Buffer buff = Json.encodeToBuffer(row.getColumns());
-      return buff;
+      return Json.encodeToBuffer(row.getColumns());
     }
 
     @Override
@@ -310,7 +168,7 @@ public class QueryAction implements ChannelHandler, Runnable {
     }
   }
 
-  class PullQueryRowProvider implements RowProvider {
+  private static class PullQueryRowProvider implements RowProvider {
 
     private final TableRowsEntity results;
     private final List<List<?>> rows;

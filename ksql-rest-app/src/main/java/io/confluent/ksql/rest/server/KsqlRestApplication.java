@@ -43,7 +43,7 @@ import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
 import io.confluent.ksql.query.id.HybridQueryIdGenerator;
 import io.confluent.ksql.rest.entity.CommandId;
 import io.confluent.ksql.rest.entity.KsqlErrorMessage;
-import io.confluent.ksql.rest.server.apiactions.QueryAction;
+import io.confluent.ksql.rest.server.apiactions.ServerQueryAction;
 import io.confluent.ksql.rest.server.computation.Command;
 import io.confluent.ksql.rest.server.computation.CommandQueue;
 import io.confluent.ksql.rest.server.computation.CommandRunner;
@@ -207,7 +207,7 @@ public final class KsqlRestApplication extends ExecutableApplication<KsqlRestCon
     Vertx vertx = Vertx.vertx();
     Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
     messageHandlerFactories.put("query", (conn, message) ->
-        new QueryAction(conn, message, ksqlEngine, ksqlConfig, securityExtension, vertx)
+        new ServerQueryAction(conn, message, vertx, ksqlEngine, ksqlConfig, securityExtension)
     );
     apiServer = new ApiServer(messageHandlerFactories, vertx);
   }

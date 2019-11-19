@@ -171,10 +171,7 @@ public class ApiIntegrationiTest {
                 "SELECT * from " + AGG_TABLE + " WHERE ROWKEY='" + AN_AGG_KEY + "';"));
 
     List<Row> items = queryFut.get();
-    System.out.println("**** Got rows: " + items.size());
-    for (Row row : items) {
-      System.out.println(row);
-    }
+    System.out.println("**** Got num rows: " + items.size());
     assertEquals(1, items.size());
     System.out.println(items);
   }
@@ -194,7 +191,7 @@ public class ApiIntegrationiTest {
     assertEquals(123, res.intValue());
 
     List<Row> items = subscriber.waitForItems(2, 10000);
-    assertEquals(2, items.size());
+    assertEquals(7, items.size());
     System.out.println(items);
   }
 
