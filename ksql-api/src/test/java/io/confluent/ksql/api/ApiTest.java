@@ -23,11 +23,15 @@ import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.flow.Subscriber;
 import io.confluent.ksql.api.flow.Subscription;
 import io.confluent.ksql.api.server.ApiServer;
+import io.confluent.ksql.api.server.actions.QueryAction;
+import io.confluent.ksql.api.server.actions.QueryAction.RowProvider;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -45,10 +49,11 @@ public class ApiTest {
   @Before
   public void setUp() throws Throwable {
 
-    Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
-    messageHandlerFactories.put("query", TestQueryMessageHandler::new);
-
     vertx = Vertx.vertx();
+
+    Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
+    messageHandlerFactories.put("query", (conn, msg) -> new TestQueryAction(conn, msg, vertx));
+
     server = new ApiServer(messageHandlerFactories, vertx);
     server.start().get();
     client = KSqlClient.client();
@@ -76,7 +81,7 @@ public class ApiTest {
   }
 
   @Test
-  public void testExecuteQuery() throws Throwable {
+  public void testPullQuery() throws Throwable {
 
     CompletableFuture<List<Row>> queryFut =
         client.connectWebsocket("localhost", 8888)
@@ -87,56 +92,72 @@ public class ApiTest {
     System.out.println(items);
   }
 
-  static class TestQueryMessageHandler implements Runnable {
+  static class TestQueryAction extends QueryAction {
 
-    private final ApiConnection apiConnection;
-    private final JsonObject message;
-
-    TestQueryMessageHandler(ApiConnection apiConnection, JsonObject message) {
-      this.apiConnection = apiConnection;
-      this.message = message;
+    public TestQueryAction(ApiConnection apiConnection, JsonObject message,
+        Vertx vertx) {
+      super(apiConnection, message, vertx);
     }
 
-    public void run() {
-      int queryID = 0;
-
-      Integer channelID = message.getInteger("channel-id");
-
-      JsonArray cols = new JsonArray();
-      JsonArray colTypes = new JsonArray();
-      for (int i = 0; i < 10; i++) {
-        cols.add("col" + i);
-        colTypes.add("STRING");
-      }
-
-      JsonObject response = new JsonObject()
-          .put("type", "reply")
-          .put("request-id", message.getInteger("request-id"))
-          .put("query-id", queryID)
-          .put("status", "ok")
-          .put("cols", cols)
-          .put("col-types", colTypes);
-
-      apiConnection.writeMessage(response);
-
-      for (int i = 0; i < 10; i++) {
-        JsonArray data = jsonArray(i);
-        apiConnection.writeDataFrame(channelID, data.toBuffer());
-      }
-
-      boolean pull = message.getBoolean("pull");
-      if (pull) {
-        apiConnection.writeCloseFrame(channelID);
-      }
+    @Override
+    protected RowProvider createRowProvider(String queryString) {
+      return null;
     }
   }
 
-  private static JsonArray jsonArray(int n) {
-    JsonArray arr = new JsonArray();
-    for (int i = 0; i < 10; i++) {
-      arr.add(n + "-value-" + i);
+  static class TestRowProvider implements RowProvider {
+
+    private final JsonArray colNames;
+    private final JsonArray colTypes;
+    private final List<JsonArray> rows;
+    private final int queryID;
+    private Iterator<JsonArray> iter;
+    private int pos;
+
+    public TestRowProvider(JsonArray colNames, JsonArray colTypes,
+        List<JsonArray> rows, int queryID) {
+      this.colNames = colNames;
+      this.colTypes = colTypes;
+      this.rows = rows;
+      this.queryID = queryID;
+      this.iter = rows.iterator();
     }
-    return arr;
+
+    @Override
+    public int available() {
+      return rows.size() - pos;
+    }
+
+    @Override
+    public Buffer poll() {
+      pos++;
+      JsonArray arr = iter.next();
+      return arr.toBuffer();
+    }
+
+    @Override
+    public void start() {
+    }
+
+    @Override
+    public boolean complete() {
+      return pos >= rows.size();
+    }
+
+    @Override
+    public JsonArray colNames() {
+      return colNames;
+    }
+
+    @Override
+    public JsonArray colTypes() {
+      return colTypes;
+    }
+
+    @Override
+    public int queryID() {
+      return queryID;
+    }
   }
 
   static class TestSubscriber<T> implements Subscriber<T> {
