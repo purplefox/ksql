@@ -59,9 +59,6 @@ import org.junit.rules.RuleChain;
 @Category({IntegrationTest.class})
 public class ApiIntegrationiTest {
 
-  private static final int HEADER = 1;  // <-- some responses include a header as the first message.
-  private static final int FOOTER = 1;  // <-- some responses include a footer as the last message.
-  private static final int LIMIT = 2;
   private static final String PAGE_VIEW_TOPIC = "pageviews";
   private static final String PAGE_VIEW_STREAM = "pageviews_original";
   private static final String AGG_TABLE = "AGG_TABLE";
@@ -166,19 +163,19 @@ public class ApiIntegrationiTest {
   }
 
   @Test
-  public void testExecuteQuery() throws Throwable {
+  public void testExecutePullQuery() throws Throwable {
 
     CompletableFuture<List<Row>> queryFut =
         client.connectWebsocket("localhost", 8888)
             .thenCompose(con -> con.executeQuery(
-                "SELECT * from " + PAGE_VIEW_STREAM + " EMIT CHANGES LIMIT " + LIMIT + ";"));
+                "SELECT * from " + AGG_TABLE + " WHERE ROWKEY='" + AN_AGG_KEY + "';"));
 
     List<Row> items = queryFut.get();
-    System.out.println("**** Got rows:");
+    System.out.println("**** Got rows: " + items.size());
     for (Row row : items) {
       System.out.println(row);
     }
-    //assertEquals(10, items.size());
+    assertEquals(1, items.size());
     System.out.println(items);
   }
 
@@ -190,7 +187,7 @@ public class ApiIntegrationiTest {
     CompletableFuture<Integer> queryFut =
         client.connectWebsocket("localhost", 8888)
             .thenCompose(con -> con.streamQuery(
-                "SELECT * from " + PAGE_VIEW_STREAM + " EMIT CHANGES LIMIT " + LIMIT + ";", false,
+                "SELECT * FROM " + PAGE_VIEW_STREAM + " EMIT CHANGES;", false,
                 subscriber));
 
     Integer res = queryFut.get();

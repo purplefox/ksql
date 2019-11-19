@@ -178,6 +178,7 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
     @Override
     public synchronized void onSubscribe(Subscription subscription) {
       this.subscription = subscription;
+      subscription.request(1);
     }
   }
 
@@ -199,12 +200,15 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
 
     @Override
     public synchronized void handleData(Buffer buffer) {
+      System.out.println("Received data frame on client " + buffer);
       if (closed) {
         return;
       }
       if (tokenDemand > 0) {
+        System.out.println("Delivering data to subscriber");
         deliverBuffer(buffer);
       } else {
+        System.out.println("Adding to incoming buffer");
         incomingData.add(buffer);
       }
     }
@@ -216,7 +220,18 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
       subscriber.onNext(row);
     }
 
+    /*
+    Wrote close frame
+Wrote buffer from server
+Received close frame on client
+**** Got rows:
+[]
+
+
+     */
+
     synchronized void request(long n) {
+      System.out.println("Request called");
       tokenDemand += n;
       long tokens = tokenDemand; // Take copy to prevent infinite loop
       while (!incomingData.isEmpty() && tokens > 0) {
@@ -238,6 +253,7 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
 
     @Override
     public void handleClose() {
+      System.out.println("Received close frame on client");
       subscriber.onComplete();
     }
 

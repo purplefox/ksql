@@ -24,6 +24,8 @@ import io.confluent.ksql.parser.KsqlParser.ParsedStatement;
 import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
 import io.confluent.ksql.parser.tree.Query;
 import io.confluent.ksql.parser.tree.Statement;
+import io.confluent.ksql.rest.entity.TableRowsEntity;
+import io.confluent.ksql.rest.server.execution.StaticQueryExecutor;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory.DefaultServiceContextFactory;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory.UserServiceContextFactory;
@@ -38,9 +40,11 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.security.Principal;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
 import org.apache.kafka.streams.KeyValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,11 +60,13 @@ public class QueryAction implements ChannelHandler, Runnable {
   private final KsqlSecurityExtension securityExtension;
   private final UserServiceContextFactory serviceContextFactory;
   private final DefaultServiceContextFactory defaultServiceContextFactory;
-  private TransientQueryMetadata queryMetadata;
+
   private int channelID;
   private int bytes;
   private Buffer holding;
+  private RowProvider rowProvider;
   private final Vertx vertx;
+  private boolean closed;
 
   public QueryAction(ApiConnection apiConnection, JsonObject message,
       KsqlEngine ksqlEngine, KsqlConfig ksqlConfig,
@@ -95,10 +101,13 @@ public class QueryAction implements ChannelHandler, Runnable {
     ConfiguredStatement<Query> configured = createStatement(queryString);
     ServiceContext serviceContext = createServiceContext(principal);
 
-    queryMetadata =
-        (TransientQueryMetadata) ksqlEngine.execute(serviceContext, configured)
-            .getQuery()
-            .get();
+    if (configured.getStatement().isStatic()) {
+      this.rowProvider = handleStaticQuery(serviceContext, configured);
+    } else {
+      this.rowProvider = handleNonStaticQuery(serviceContext, configured);
+    }
+
+    this.bytes = 1024 * 1024; // Initial window size;
 
     int queryID = 123;
     JsonArray cols = new JsonArray().add("a").add("b");
@@ -114,8 +123,6 @@ public class QueryAction implements ChannelHandler, Runnable {
 
     apiConnection.writeMessage(response);
 
-    this.bytes = 1024 * 1024; // Initial window size;
-
     /*
     TODO this is a hack!
     Query messages are currently put on a blocking queue
@@ -127,22 +134,95 @@ public class QueryAction implements ChannelHandler, Runnable {
     */
     setDeliverTimer();
 
-    queryMetadata.start();
+    rowProvider.start();
   }
 
-  private void setDeliverTimer() {
+  private RowProvider handleStaticQuery(ServiceContext serviceContext,
+      ConfiguredStatement<Query> configured) {
+    TableRowsEntity result = StaticQueryExecutor.execute(configured, ksqlEngine, serviceContext);
+    return new PullQueryRowProvider(result);
+  }
+
+  private RowProvider handleNonStaticQuery(ServiceContext serviceContext,
+      ConfiguredStatement<Query> configured) {
+    TransientQueryMetadata queryMetadata =
+        (TransientQueryMetadata) ksqlEngine.execute(serviceContext, configured)
+            .getQuery()
+            .get();
+    return new PushQueryRowProvider(queryMetadata);
+  }
+
+  private synchronized void setDeliverTimer() {
+    if (closed) {
+      return;
+    }
     vertx.setTimer(100, h -> {
       checkDeliver();
       setDeliverTimer();
     });
   }
 
-  static class DummyPrincipal implements Principal {
+  @Override
+  public void handleData(Buffer data) {
+  }
 
-    @Override
-    public String getName() {
-      return "tim";
+  @Override
+  public synchronized void handleFlow(int bytes) {
+    this.bytes += bytes;
+    checkDeliver();
+  }
+
+  private synchronized void checkDeliver() {
+    if (closed) {
+      return;
     }
+    doCheck();
+    checkComplete();
+  }
+
+  private synchronized void doCheck() {
+    if (bytes == 0) {
+      return;
+    }
+    if (holding != null) {
+      if (this.bytes >= holding.length()) {
+        sendBuffer(holding);
+        holding = null;
+      } else {
+        return;
+      }
+    }
+    int num = rowProvider.available();
+    for (int i = 0; i < num; i++) {
+      Buffer buff = rowProvider.poll();
+      if (bytes >= buff.length()) {
+        sendBuffer(buff);
+      } else {
+        holding = buff;
+        break;
+      }
+    }
+  }
+
+  private void checkComplete() {
+    if (rowProvider.complete()) {
+      apiConnection.writeCloseFrame(channelID);
+      close();
+    }
+  }
+
+  private synchronized void close() {
+    closed = true;
+  }
+
+  private void sendBuffer(Buffer buffer) {
+    apiConnection.writeDataFrame(channelID, buffer);
+    bytes -= buffer.length();
+  }
+
+  @Override
+  public void handleClose() {
+    close();
   }
 
   private ConfiguredStatement<Query> createStatement(String queryString) {
@@ -185,50 +265,93 @@ public class QueryAction implements ChannelHandler, Runnable {
         .get();
   }
 
-  @Override
-  public void handleData(Buffer data) {
+  private interface RowProvider {
+
+    int available();
+
+    Buffer poll();
+
+    void start();
+
+    boolean complete();
   }
 
-  @Override
-  public synchronized void handleFlow(int bytes) {
-    this.bytes += bytes;
-    checkDeliver();
-  }
+  class PushQueryRowProvider implements RowProvider {
 
-  private synchronized void checkDeliver() {
-    if (bytes == 0) {
-      return;
+    private final TransientQueryMetadata queryMetadata;
+    private final BlockingQueue<KeyValue<String, GenericRow>> queue;
+
+    public PushQueryRowProvider(TransientQueryMetadata queryMetadata) {
+      this.queryMetadata = queryMetadata;
+      this.queue = queryMetadata.getRowQueue();
     }
-    if (holding != null) {
-      if (this.bytes >= holding.length()) {
-        sendBuffer(holding);
-        holding = null;
-      } else {
-        return;
-      }
+
+    @Override
+    public int available() {
+      return queue.size();
     }
-    int num = queryMetadata.getRowQueue().size();
-    for (int i = 0; i < num; i++) {
-      KeyValue<String, GenericRow> kv = queryMetadata.getRowQueue().poll();
+
+    @Override
+    public Buffer poll() {
+      KeyValue<String, GenericRow> kv = queue.poll();
       GenericRow row = kv.value;
       Buffer buff = Json.encodeToBuffer(row.getColumns());
-      if (bytes >= buff.length()) {
-        sendBuffer(buff);
-      } else {
-        holding = buff;
-        break;
-      }
+      return buff;
+    }
+
+    @Override
+    public void start() {
+      queryMetadata.start();
+    }
+
+    @Override
+    public boolean complete() {
+      return false;
     }
   }
 
-  private void sendBuffer(Buffer buffer) {
-    apiConnection.writeDataFrame(channelID, buffer);
-    bytes -= buffer.length();
+  class PullQueryRowProvider implements RowProvider {
+
+    private final TableRowsEntity results;
+    private final List<List<?>> rows;
+    private final Iterator<List<?>> iter;
+    private int pos;
+
+    public PullQueryRowProvider(TableRowsEntity results) {
+      this.results = results;
+      this.rows = results.getRows();
+      iter = rows.iterator();
+    }
+
+    @Override
+    public int available() {
+      return rows.size() - pos;
+    }
+
+    @Override
+    public Buffer poll() {
+      List<?> row = iter.next();
+      Buffer buff = Json.encodeToBuffer(row);
+      pos++;
+      return buff;
+    }
+
+    @Override
+    public void start() {
+    }
+
+    @Override
+    public boolean complete() {
+      return available() == 0;
+    }
   }
 
-  @Override
-  public void handleClose() {
+  private static class DummyPrincipal implements Principal {
 
+    @Override
+    public String getName() {
+      return "tim";
+    }
   }
 
 }
