@@ -25,7 +25,7 @@ import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
 import io.confluent.ksql.parser.tree.Query;
 import io.confluent.ksql.parser.tree.Statement;
 import io.confluent.ksql.rest.entity.TableRowsEntity;
-import io.confluent.ksql.rest.server.execution.StaticQueryExecutor;
+import io.confluent.ksql.rest.server.execution.PullQueryExecutor;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory.DefaultServiceContextFactory;
 import io.confluent.ksql.rest.server.services.RestServiceContextFactory.UserServiceContextFactory;
@@ -75,7 +75,7 @@ public class ServerQueryAction extends QueryAction {
     ConfiguredStatement<Query> configured = createStatement(queryString);
     ServiceContext serviceContext = createServiceContext(principal);
     Query query = configured.getStatement();
-    if (configured.getStatement().isStatic()) {
+    if (configured.getStatement().isPullQuery()) {
       return createStaticQueryRowProvider(serviceContext, configured);
     } else {
       return createNonStaticQueryRowProvider(serviceContext, configured);
@@ -84,7 +84,7 @@ public class ServerQueryAction extends QueryAction {
 
   private RowProvider createStaticQueryRowProvider(ServiceContext serviceContext,
       ConfiguredStatement<Query> configured) {
-    TableRowsEntity result = StaticQueryExecutor.execute(configured, ksqlEngine, serviceContext);
+    TableRowsEntity result = PullQueryExecutor.execute(configured, ksqlEngine, serviceContext);
     return new PullQueryRowProvider(result);
   }
 
