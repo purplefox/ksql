@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableMap;
 import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.api.ApiConnection;
 import io.confluent.ksql.api.server.actions.QueryAction;
+import io.confluent.ksql.api.server.actions.RowProvider;
 import io.confluent.ksql.engine.KsqlEngine;
 import io.confluent.ksql.parser.KsqlParser.ParsedStatement;
 import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
@@ -113,9 +114,7 @@ public class ServerQueryAction extends QueryAction {
     PreparedStatement<Query> psq = (PreparedStatement<Query>) ps;
     final Map<String, Object> clientLocalProperties = ImmutableMap
         .of("ksql.streams.auto.offset.reset", "earliest");
-    final ConfiguredStatement<Query> configured =
-        ConfiguredStatement.of(psq, clientLocalProperties, ksqlConfig);
-    return configured;
+    return ConfiguredStatement.of(psq, clientLocalProperties, ksqlConfig);
   }
 
   private ServiceContext createServiceContext(final Principal principal) {

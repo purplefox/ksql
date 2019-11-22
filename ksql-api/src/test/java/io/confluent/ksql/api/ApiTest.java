@@ -16,22 +16,19 @@
 package io.confluent.ksql.api;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
 import io.confluent.ksql.api.client.KSqlClient;
+import io.confluent.ksql.api.client.KSqlConnection;
 import io.confluent.ksql.api.client.Row;
-import io.confluent.ksql.api.flow.Subscriber;
-import io.confluent.ksql.api.flow.Subscription;
 import io.confluent.ksql.api.server.ApiServer;
-import io.confluent.ksql.api.server.actions.QueryAction;
-import io.confluent.ksql.api.server.actions.QueryAction.RowProvider;
 import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -46,13 +43,19 @@ public class ApiTest {
   private ApiServer server;
   private KSqlClient client;
 
+  private volatile TestRowProvider testRowProvider;
+  private volatile TestInserter testInserter;
+
   @Before
   public void setUp() throws Throwable {
 
     vertx = Vertx.vertx();
 
     Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
-    messageHandlerFactories.put("query", (conn, msg) -> new TestQueryAction(conn, msg, vertx));
+    messageHandlerFactories
+        .put("query", (conn, msg) -> new TestQueryAction(conn, msg, vertx, testRowProvider));
+    messageHandlerFactories
+        .put("insert", (conn, msg) -> new TestInsertAction(conn, msg, testInserter));
 
     server = new ApiServer(messageHandlerFactories, vertx);
     server.start().get();
@@ -66,143 +69,128 @@ public class ApiTest {
   @Test
   public void testStreamPushQuery() throws Throwable {
 
+    JsonArray colNames = colNames("col0", "col1", "col2");
+    JsonArray colTypes = colTypes("INT", "STRING", "BOOLEAN");
+    List<JsonArray> rows = generateRows(10, colTypes);
+    int queryID = 12345;
+    testRowProvider = new TestRowProvider(colNames, colTypes, rows, queryID, false);
+
     TestSubscriber<Row> subscriber = new TestSubscriber<>();
 
     CompletableFuture<Integer> queryFut =
-        client.connectWebsocket("localhost", 8888)
+        connect()
             .thenCompose(con -> con.streamQuery("select * from line_items", false, subscriber));
 
     Integer res = queryFut.get();
-    assertEquals(0, res.intValue());
+    assertEquals(queryID, res.intValue());
 
     List<Row> items = subscriber.waitForItems(10, 10000);
     assertEquals(10, items.size());
+    assertFalse(subscriber.isCompleted());
     System.out.println(items);
   }
 
   @Test
   public void testPullQuery() throws Throwable {
 
+    JsonArray colNames = colNames("col0", "col1", "col2");
+    JsonArray colTypes = colTypes("INT", "STRING", "BOOLEAN");
+    List<JsonArray> rows = generateRows(10, colTypes);
+    int queryID = 12345;
+    testRowProvider = new TestRowProvider(colNames, colTypes, rows, queryID, true);
+
     CompletableFuture<List<Row>> queryFut =
-        client.connectWebsocket("localhost", 8888)
-            .thenCompose(con -> con.executeQuery("select * from line_items"));
+        connect().thenCompose(con -> con.executeQuery("select * from line_items"));
 
     List<Row> items = queryFut.get();
-    assertEquals(10, items.size());
+    assertEquals(rows.size(), items.size());
+
+    for (int i = 0; i < items.size(); i++) {
+      assertEquals(rows.get(i), items.get(i).values());
+      assertEquals(colNames, items.get(i).columns());
+      assertEquals(colTypes, items.get(i).columnTypes());
+    }
+
     System.out.println(items);
   }
 
-  static class TestQueryAction extends QueryAction {
+  @Test
+  public void testInsert() throws Exception {
 
-    public TestQueryAction(ApiConnection apiConnection, JsonObject message,
-        Vertx vertx) {
-      super(apiConnection, message, vertx);
-    }
+    testInserter = new TestInserter();
 
-    @Override
-    protected RowProvider createRowProvider(String queryString) {
-      return null;
-    }
+    JsonObject row = new JsonObject();
+
+    connect().thenCompose(con -> con.insertInto("line_items", row));
+
+    List<JsonObject> items = waitForItems(1, 10000, testInserter);
+    assertEquals(1, items.size());
+    assertEquals(row, items.get(0));
+
+    System.out.println(items);
   }
 
-  static class TestRowProvider implements RowProvider {
-
-    private final JsonArray colNames;
-    private final JsonArray colTypes;
-    private final List<JsonArray> rows;
-    private final int queryID;
-    private Iterator<JsonArray> iter;
-    private int pos;
-
-    public TestRowProvider(JsonArray colNames, JsonArray colTypes,
-        List<JsonArray> rows, int queryID) {
-      this.colNames = colNames;
-      this.colTypes = colTypes;
-      this.rows = rows;
-      this.queryID = queryID;
-      this.iter = rows.iterator();
-    }
-
-    @Override
-    public int available() {
-      return rows.size() - pos;
-    }
-
-    @Override
-    public Buffer poll() {
-      pos++;
-      JsonArray arr = iter.next();
-      return arr.toBuffer();
-    }
-
-    @Override
-    public void start() {
-    }
-
-    @Override
-    public boolean complete() {
-      return pos >= rows.size();
-    }
-
-    @Override
-    public JsonArray colNames() {
-      return colNames;
-    }
-
-    @Override
-    public JsonArray colTypes() {
-      return colTypes;
-    }
-
-    @Override
-    public int queryID() {
-      return queryID;
-    }
-  }
-
-  static class TestSubscriber<T> implements Subscriber<T> {
-
-    private final List<T> items = new ArrayList<>();
-    private Throwable error;
-    private boolean completed;
-    private Subscription subscription;
-
-    @Override
-    public synchronized void onNext(T item) {
-      if (subscription == null) {
-        throw new IllegalStateException("subscription has not been set");
+  List<JsonObject> waitForItems(int num, long timeout, TestInserter testInserter) throws Exception {
+    long start = System.currentTimeMillis();
+    while ((System.currentTimeMillis() - start) < timeout) {
+      synchronized (this) {
+        List<JsonObject> rows = testInserter.getRows();
+        if (rows.size() >= num) {
+          return rows;
+        }
+        Thread.sleep(10);
       }
-      subscription.request(1);
-      items.add(item);
     }
+    throw new TimeoutException("Timed out waiting for items");
+  }
 
-    @Override
-    public synchronized void onError(Throwable e) {
-      error = e;
-    }
+  private CompletableFuture<KSqlConnection> connect() {
+    return client.connectWebsocket("localhost", 8888);
+  }
 
-    @Override
-    public synchronized void onComplete() {
-      completed = true;
-    }
-
-    @Override
-    public synchronized void onSubscribe(Subscription subscription) {
-      this.subscription = subscription;
-    }
-
-    public List<T> waitForItems(int num, long timeout) throws Exception {
-      long start = System.currentTimeMillis();
-      while ((System.currentTimeMillis() - start) < timeout) {
-        synchronized (this) {
-          if (items.size() >= num) {
-            return items;
+  private List<JsonArray> generateRows(int num, JsonArray colTypes) {
+    List<JsonArray> rows = new ArrayList<>();
+    for (int i = 0; i < num; i++) {
+      JsonArray row = new JsonArray();
+      for (int j = 0; j < colTypes.size(); j++) {
+        String colType = colTypes.getString(j);
+        switch (colType) {
+          case "STRING": {
+            row.add("value" + i + "-" + j);
+            break;
           }
-          Thread.sleep(10);
+          case "INT": {
+            row.add(i + j);
+            break;
+          }
+          case "BOOLEAN": {
+            row.add((i + j) % 2 == 0);
+            break;
+          }
+          case "DOUBLE": {
+            row.add((i + j) / 3);
+            break;
+          }
+          default:
+            throw new IllegalArgumentException("Invalid type " + colType);
         }
       }
-      throw new TimeoutException("Timed out waiting for items");
+      rows.add(row);
     }
+    return rows;
+  }
+
+
+  private JsonArray colNames(String... colNames) {
+    return new JsonArray(Arrays.asList(colNames));
+  }
+
+  private JsonArray colTypes(String... colTypes) {
+    return new JsonArray(Arrays.asList(colTypes));
+  }
+
+  private JsonArray row(Object... vals) {
+    return new JsonArray(Arrays.asList(vals));
   }
 
 }

@@ -15,17 +15,22 @@
 
 package io.confluent.ksql.api.protocol;
 
-import io.vertx.core.buffer.Buffer;
+import io.confluent.ksql.api.protocol.ProtocolHandler.AckFrame;
+import io.confluent.ksql.api.protocol.ProtocolHandler.CloseFrame;
+import io.confluent.ksql.api.protocol.ProtocolHandler.DataFrame;
+import io.confluent.ksql.api.protocol.ProtocolHandler.FlowFrame;
+import io.confluent.ksql.api.protocol.ProtocolHandler.MessageFrame;
 
-public interface ChannelHandler extends Runnable {
+public interface FrameHandler {
 
-  void handleData(Buffer data);
+  void handleMessageFrame(MessageFrame messageFrame);
 
-  void handleAck();
+  void handleDataFrame(DataFrame dataFrame);
 
-  void handleFlow(int bytes);
+  void handleAckFrame(AckFrame ackFrame);
 
-  void handleClose();
+  void handleFlowFrame(FlowFrame flowFrame);
+
+  void handleCloseFrame(CloseFrame closeFrame);
 
 }
-

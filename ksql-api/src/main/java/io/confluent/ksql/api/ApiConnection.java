@@ -16,18 +16,19 @@
 package io.confluent.ksql.api;
 
 import io.confluent.ksql.api.protocol.ChannelHandler;
+import io.confluent.ksql.api.protocol.FrameHandler;
 import io.confluent.ksql.api.protocol.ProtocolHandler;
+import io.confluent.ksql.api.protocol.ProtocolHandler.AckFrame;
 import io.confluent.ksql.api.protocol.ProtocolHandler.CloseFrame;
 import io.confluent.ksql.api.protocol.ProtocolHandler.DataFrame;
 import io.confluent.ksql.api.protocol.ProtocolHandler.FlowFrame;
-import io.confluent.ksql.api.protocol.ProtocolHandler.MessageFrame;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class ApiConnection {
+public abstract class ApiConnection implements FrameHandler {
 
   protected final ProtocolHandler protocolHandler;
   private final Map<Integer, ChannelHandler> channelHandlers = new HashMap<>();
@@ -40,9 +41,7 @@ public abstract class ApiConnection {
   public ApiConnection(
       Handler<Buffer> frameWriter
   ) {
-    this.protocolHandler = new ProtocolHandler(this::handleMessage,
-        this::handleDataFrame, this::handleFlowFrame, this::handleCloseFrame, frameWriter
-    );
+    this.protocolHandler = new ProtocolHandler(this, frameWriter);
   }
 
   public void handleBuffer(Buffer buffer) {
@@ -51,14 +50,16 @@ public abstract class ApiConnection {
 
   protected abstract void runMessageHandler(Runnable messageHandler);
 
-  protected abstract void handleMessage(MessageFrame messageFrame);
-
   public void writeMessage(JsonObject message) {
     protocolHandler.writeMessageFrame(message);
   }
 
   public void writeDataFrame(int channelID, Buffer buffer) {
     protocolHandler.writeDataFrame(channelID, buffer);
+  }
+
+  public void writeAckFrame(int channelID) {
+    protocolHandler.writeAckFrame(channelID);
   }
 
   public void writeFlowFrame(int channelID, int bytes) {
@@ -69,7 +70,7 @@ public abstract class ApiConnection {
     protocolHandler.writeCloseFrame(channelID);
   }
 
-  protected void registerChannelHandler(int channelID, ChannelHandler channelHandler) {
+  public void registerChannelHandler(int channelID, ChannelHandler channelHandler) {
     channelHandlers.put(channelID, channelHandler);
   }
 
@@ -87,15 +88,19 @@ public abstract class ApiConnection {
     return handler;
   }
 
-  private void handleDataFrame(DataFrame dataFrame) {
+  public void handleDataFrame(DataFrame dataFrame) {
     getChannelHandler(dataFrame.channelID).handleData(dataFrame.data);
   }
 
-  private void handleFlowFrame(FlowFrame flowFrame) {
+  public void handleAckFrame(AckFrame ackFrame) {
+    getChannelHandler(ackFrame.channelID).handleAck();
+  }
+
+  public void handleFlowFrame(FlowFrame flowFrame) {
     getChannelHandler(flowFrame.channelID).handleFlow(flowFrame.bytes);
   }
 
-  private void handleCloseFrame(CloseFrame closeFrame) {
+  public void handleCloseFrame(CloseFrame closeFrame) {
     getChannelHandler(closeFrame.channelID).handleClose();
   }
 

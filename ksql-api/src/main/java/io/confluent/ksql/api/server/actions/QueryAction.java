@@ -19,10 +19,9 @@ import io.confluent.ksql.api.ApiConnection;
 import io.confluent.ksql.api.protocol.ChannelHandler;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
-public abstract class QueryAction implements ChannelHandler, Runnable {
+public abstract class QueryAction implements ChannelHandler {
 
   private final ApiConnection apiConnection;
   private final JsonObject message;
@@ -50,7 +49,7 @@ public abstract class QueryAction implements ChannelHandler, Runnable {
     this.channelID = channelID;
     String queryString = message.getString("query");
     if (queryString == null) {
-      apiConnection.handleError("Control message must contain a query field");
+      apiConnection.handleError("Message must contain a query field");
     }
 
     this.rowProvider = createRowProvider(queryString);
@@ -83,6 +82,11 @@ public abstract class QueryAction implements ChannelHandler, Runnable {
 
   @Override
   public void handleData(Buffer data) {
+  }
+
+  @Override
+  public void handleAck() {
+
   }
 
   @Override
@@ -158,23 +162,6 @@ public abstract class QueryAction implements ChannelHandler, Runnable {
   private void sendBuffer(Buffer buffer) {
     apiConnection.writeDataFrame(channelID, buffer);
     bytes -= buffer.length();
-  }
-
-  public interface RowProvider {
-
-    int available();
-
-    Buffer poll();
-
-    void start();
-
-    boolean complete();
-
-    JsonArray colNames();
-
-    JsonArray colTypes();
-
-    int queryID();
   }
 
 }

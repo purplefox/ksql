@@ -13,19 +13,24 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.protocol;
+package io.confluent.ksql.api.server.actions;
 
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.JsonArray;
 
-public interface ChannelHandler extends Runnable {
+public interface RowProvider {
 
-  void handleData(Buffer data);
+  int available();
 
-  void handleAck();
+  Buffer poll();
 
-  void handleFlow(int bytes);
+  void start();
 
-  void handleClose();
+  boolean complete();
 
+  JsonArray colNames();
+
+  JsonArray colTypes();
+
+  int queryID();
 }
-

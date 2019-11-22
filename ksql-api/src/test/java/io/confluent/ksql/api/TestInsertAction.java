@@ -13,19 +13,23 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.protocol;
+package io.confluent.ksql.api;
 
-import io.vertx.core.buffer.Buffer;
+import io.confluent.ksql.api.server.actions.InsertAction;
+import io.confluent.ksql.api.server.actions.Inserter;
+import io.vertx.core.json.JsonObject;
 
-public interface ChannelHandler extends Runnable {
+public class TestInsertAction extends InsertAction {
 
-  void handleData(Buffer data);
+  private final Inserter inserter;
 
-  void handleAck();
+  public TestInsertAction(ApiConnection apiConnection, JsonObject message, Inserter inserter) {
+    super(apiConnection, message);
+    this.inserter = inserter;
+  }
 
-  void handleFlow(int bytes);
-
-  void handleClose();
-
+  @Override
+  protected Inserter createInserter(Integer channelID, String target) {
+    return inserter;
+  }
 }
-

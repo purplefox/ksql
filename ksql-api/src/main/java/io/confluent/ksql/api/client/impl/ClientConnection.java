@@ -16,15 +16,15 @@
 package io.confluent.ksql.api.client.impl;
 
 import io.confluent.ksql.api.ApiConnection;
+import io.confluent.ksql.api.client.InsertStream;
 import io.confluent.ksql.api.client.KSqlConnection;
+import io.confluent.ksql.api.client.KsqlClientException;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.flow.Subscriber;
 import io.confluent.ksql.api.flow.Subscription;
-import io.confluent.ksql.api.impl.Utils;
 import io.confluent.ksql.api.protocol.ChannelHandler;
 import io.confluent.ksql.api.protocol.ProtocolHandler.MessageFrame;
 import io.vertx.core.Handler;
-import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -45,25 +45,10 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
   private final Map<Integer, Consumer<JsonObject>> requestMap = new ConcurrentHashMap<>();
   private final AtomicInteger channelIDSequence = new AtomicInteger();
   private final AtomicInteger requestIDSequence = new AtomicInteger();
+  private final Map<String, InsertChannelHandler> insertChannels = new ConcurrentHashMap<>();
 
   public ClientConnection(Handler<Buffer> frameWriter) {
     super(frameWriter);
-  }
-
-  @Override
-  protected void handleMessage(MessageFrame messageFrame) {
-    JsonObject message = messageFrame.payload;
-    System.out.println("Received message on client: " + message);
-    String type = message.getString("type");
-    if ("reply".equals(type)) {
-      Integer requestID = message.getInteger("request-id");
-      if (requestID == null) {
-        throw new IllegalStateException("No request-id in reply");
-      }
-      handleReply(requestID, message);
-    } else {
-      throw new IllegalStateException("Unknown type from server " + type);
-    }
   }
 
   @Override
@@ -78,10 +63,10 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
         .put("channel-id", channelID)
         .put("request-id", requestID)
         .put("pull", pull);
-    Promise<Integer> promise = Promise.promise();
-    requestMap.put(requestID, jo -> handleQueryReply(promise, jo, subscriber, channelID));
+    CompletableFuture<Integer> future = new CompletableFuture<>();
+    requestMap.put(requestID, jo -> handleQueryReply(future, jo, subscriber, channelID));
     writeMessage(message);
-    return Utils.convertFuture(promise.future());
+    return future;
   }
 
   @Override
@@ -96,20 +81,59 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
   }
 
   @Override
+  public synchronized CompletableFuture<Void> insertInto(String target, JsonObject row) {
+    CompletableFuture<Void> future = new CompletableFuture<>();
+    InsertChannelHandler handler = insertChannels.get(target);
+    if (handler == null) {
+      int channelID = channelIDSequence.getAndIncrement();
+      int requestID = requestIDSequence.getAndIncrement();
+      JsonObject message = new JsonObject()
+          .put("type", "insert")
+          .put("target", target)
+          .put("channel-id", channelID)
+          .put("request-id", requestID);
+      requestMap.put(requestID, jo -> handleInsertReply(future, jo));
+      handler = new InsertChannelHandler(future, channelID);
+      registerChannelHandler(channelID, handler);
+      insertChannels.put(target, handler);
+      writeMessage(message);
+    }
+    handler.sendInsertData(row);
+    return future;
+  }
+
+  @Override
+  public InsertStream insertStream(String containerName) {
+    return null;
+  }
+
+  @Override
   protected void runMessageHandler(Runnable messageHandler) {
     messageHandler.run();
   }
 
-  private void handleQueryReply(Promise<Integer> promise, JsonObject reply,
-      Subscriber<Row> subscriber, int channelID) {
-    String status = reply.getString("status");
-    if (status == null) {
-      throw new IllegalStateException("No status in reply");
+  @Override
+  public void handleMessageFrame(MessageFrame messageFrame) {
+    JsonObject message = messageFrame.payload;
+    System.out.println("Received message on client: " + message);
+    String type = message.getString("type");
+    if ("reply".equals(type)) {
+      Integer requestID = message.getInteger("request-id");
+      if (requestID == null) {
+        throw new IllegalStateException("No request-id in reply");
+      }
+      handleReply(requestID, message);
+    } else {
+      throw new IllegalStateException("Unknown type from server " + type);
     }
-    if ("ok".equals(status)) {
+  }
+
+  private void handleQueryReply(CompletableFuture<Integer> future, JsonObject reply,
+      Subscriber<Row> subscriber, int channelID) {
+    if (checkStatus(future, reply)) {
       Integer queryID = reply.getInteger("query-id");
       if (queryID == null) {
-        promise.fail(new IllegalStateException("No query-id in reply"));
+        future.completeExceptionally(new KsqlClientException("No query-id in reply"));
         return;
       }
       JsonArray columns = reply.getJsonArray("cols");
@@ -126,13 +150,94 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
       registerChannelHandler(channelID, handler);
       subscriber.onSubscribe(new QuerySubscription(handler));
 
-      promise.complete(queryID);
+      future.complete(queryID);
+    }
+  }
+
+  private void handleInsertReply(CompletableFuture<Void> future, JsonObject reply) {
+    checkStatus(future, reply);
+  }
+
+  class InsertChannelHandler implements ChannelHandler {
+
+    private final CompletableFuture<Void> future;
+    private final int channelID;
+    private int bytes = 1024 * 1024; // Initial window size
+
+    private final Queue<Buffer> outgoingInserts = new ConcurrentLinkedQueue<>();
+
+    InsertChannelHandler(CompletableFuture<Void> future, int channelID) {
+      this.future = future;
+      this.channelID = channelID;
+    }
+
+    void sendInsertData(JsonObject row) {
+      Buffer data = row.toBuffer();
+      if (bytes >= data.length()) {
+        bytes -= data.length();
+        writeDataFrame(channelID, data);
+      } else {
+        outgoingInserts.add(data);
+      }
+    }
+
+    private void checkSendOutgoing() {
+      while (!outgoingInserts.isEmpty()) {
+        Buffer data = outgoingInserts.peek();
+        if (bytes >= data.length()) {
+          outgoingInserts.remove();
+          sendBuffer(data);
+        } else {
+          break;
+        }
+      }
+    }
+
+    private void sendBuffer(Buffer data) {
+      bytes -= data.length();
+      writeDataFrame(channelID, data);
+    }
+
+    @Override
+    public void handleData(Buffer data) {
+    }
+
+    @Override
+    public void handleAck() {
+
+    }
+
+    @Override
+    public synchronized void handleFlow(int bytes) {
+      this.bytes += bytes;
+      checkSendOutgoing();
+    }
+
+    @Override
+    public void handleClose() {
+
+    }
+
+
+    @Override
+    public void run() {
+    }
+  }
+
+  private boolean checkStatus(CompletableFuture<?> future, JsonObject reply) {
+    String status = reply.getString("status");
+    if (status == null) {
+      throw new IllegalStateException("No status in reply");
+    }
+    if ("ok".equals(status)) {
+      return true;
     } else if ("err".equals(status)) {
       String errMessage = reply.getString("err-msg");
       if (errMessage == null) {
         throw new IllegalStateException("No err-msg in err reply");
       }
-      promise.fail(errMessage);
+      future.completeExceptionally(new KsqlClientException(errMessage));
+      return false;
     } else {
       throw new IllegalStateException("Invalid status " + status);
     }
@@ -213,22 +318,16 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
       }
     }
 
+    @Override
+    public void handleAck() {
+    }
+
     synchronized void deliverBuffer(Buffer buffer) {
       JsonArray jsonArray = new JsonArray(buffer);
       Row row = new RowImpl(jsonArray, header);
       tokenDemand--;
       subscriber.onNext(row);
     }
-
-    /*
-    Wrote close frame
-Wrote buffer from server
-Received close frame on client
-**** Got rows:
-[]
-
-
-     */
 
     synchronized void request(long n) {
       System.out.println("Request called");

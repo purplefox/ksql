@@ -13,21 +13,25 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.client;
+package io.confluent.ksql.api;
 
-import io.confluent.ksql.api.flow.Subscriber;
+import io.confluent.ksql.api.server.actions.QueryAction;
+import io.confluent.ksql.api.server.actions.RowProvider;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
-public interface KSqlConnection {
+public class TestQueryAction extends QueryAction {
 
-  CompletableFuture<Integer> streamQuery(String query, boolean pull, Subscriber<Row> subscriber);
+  private final RowProvider rowProvider;
 
-  CompletableFuture<List<Row>> executeQuery(String query);
+  public TestQueryAction(ApiConnection apiConnection, JsonObject message,
+      Vertx vertx, RowProvider rowProvider) {
+    super(apiConnection, message, vertx);
+    this.rowProvider = rowProvider;
+  }
 
-  CompletableFuture<Void> insertInto(String target, JsonObject row);
-
-  InsertStream insertStream(String target);
-
+  @Override
+  protected RowProvider createRowProvider(String queryString) {
+    return rowProvider;
+  }
 }

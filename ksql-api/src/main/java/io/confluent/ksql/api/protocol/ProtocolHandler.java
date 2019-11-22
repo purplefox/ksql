@@ -23,27 +23,19 @@ public class ProtocolHandler {
 
   private static final int MSG = 1836279562; // "msg\n"
   private static final int DAT = 1684108298; // "dat\n"
+  private static final int ACK = 1633905418; // "ack\n"
   private static final int FLO = 1912602624; // "flo\n"
   private static final int CLS = 1668051722; // "cls\n"
   private static final int HRT = 1752331274; // "hrt\n"
 
-  private final Handler<MessageFrame> messageHandler;
-  private final Handler<DataFrame> dataHandler;
-  private final Handler<FlowFrame> flowHandler;
-  private final Handler<CloseFrame> closeHandler;
+  private final FrameHandler frameHandler;
   private final Handler<Buffer> frameWriter;
 
   public ProtocolHandler(
-      final Handler<MessageFrame> messageHandler,
-      final Handler<DataFrame> dataHandler,
-      final Handler<FlowFrame> flowHandler,
-      final Handler<CloseFrame> closeHandler,
+      final FrameHandler frameHandler,
       final Handler<Buffer> frameWriter
   ) {
-    this.messageHandler = messageHandler;
-    this.dataHandler = dataHandler;
-    this.flowHandler = flowHandler;
-    this.closeHandler = closeHandler;
+    this.frameHandler = frameHandler;
     this.frameWriter = frameWriter;
   }
 
@@ -78,6 +70,13 @@ public class ProtocolHandler {
     frameWriter.handle(buff);
   }
 
+  public void writeAckFrame(int channelID) {
+    Buffer buff = Buffer.buffer(8)
+        .setInt(0, ACK)
+        .setInt(4, channelID);
+    frameWriter.handle(buff);
+  }
+
   public void handleBuffer(Buffer buffer) {
     if (buffer.length() < 8) {
       throw new IllegalStateException("Not enough data");
@@ -89,6 +88,10 @@ public class ProtocolHandler {
         break;
       }
       case DAT: {
+        handleData(buffer);
+        break;
+      }
+      case ACK: {
         handleData(buffer);
         break;
       }
@@ -108,29 +111,35 @@ public class ProtocolHandler {
   private void handleMessageFrame(Buffer buffer) {
     Buffer sliced = buffer.slice(4, buffer.length());
     JsonObject payload = new JsonObject(sliced);
-    messageHandler.handle(new MessageFrame(payload));
+    frameHandler.handleMessageFrame(new MessageFrame(payload));
   }
 
   private void handleData(Buffer buffer) {
     int channelID = buffer.getInt(4);
     Buffer data = buffer.slice(8, buffer.length());
-    dataHandler.handle(new DataFrame(channelID, data));
+    frameHandler.handleDataFrame(new DataFrame(channelID, data));
+  }
+
+  private void handleAck(Buffer buffer) {
+    int channelID = buffer.getInt(4);
+    frameHandler.handleAckFrame(new AckFrame(channelID));
   }
 
   private void handleFlow(Buffer buffer) {
     int channelID = buffer.getInt(4);
     int bytes = buffer.getInt(8);
-    flowHandler.handle(new FlowFrame(channelID, bytes));
+    frameHandler.handleFlowFrame(new FlowFrame(channelID, bytes));
   }
 
   private void handleClose(Buffer buffer) {
     int channelID = buffer.getInt(4);
-    closeHandler.handle(new CloseFrame(channelID));
+    frameHandler.handleCloseFrame(new CloseFrame(channelID));
   }
 
   public static void main(String[] args) {
     System.out.println(toInt('m', 's', 'g', '\n'));
     System.out.println(toInt('d', 'a', 't', '\n'));
+    System.out.println(toInt('a', 'c', 'k', '\n'));
     System.out.println(toInt('f', 'l', 'o', '\n'));
     System.out.println(toInt('c', 'l', 's', '\n'));
     System.out.println(toInt('h', 'r', 't', '\n'));
@@ -157,6 +166,15 @@ public class ProtocolHandler {
     DataFrame(final int channelID, final Buffer data) {
       this.channelID = channelID;
       this.data = data;
+    }
+  }
+
+  public static class AckFrame {
+
+    public final int channelID;
+
+    AckFrame(final int channelID) {
+      this.channelID = channelID;
     }
   }
 

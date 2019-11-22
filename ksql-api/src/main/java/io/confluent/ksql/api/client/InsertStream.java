@@ -13,19 +13,13 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.protocol;
+package io.confluent.ksql.api.client;
 
-import io.vertx.core.buffer.Buffer;
+import io.confluent.ksql.api.flow.Subscriber;
+import io.vertx.core.json.JsonObject;
+import java.util.concurrent.CompletableFuture;
 
-public interface ChannelHandler extends Runnable {
+public interface InsertStream extends Subscriber<JsonObject> {
 
-  void handleData(Buffer data);
-
-  void handleAck();
-
-  void handleFlow(int bytes);
-
-  void handleClose();
-
+  CompletableFuture<Void> insertRow(JsonObject row);
 }
-

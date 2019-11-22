@@ -13,19 +13,27 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.protocol;
+package io.confluent.ksql.api.client;
 
-import io.vertx.core.buffer.Buffer;
+public class KsqlClientException extends RuntimeException {
 
-public interface ChannelHandler extends Runnable {
+  public KsqlClientException() {
+  }
 
-  void handleData(Buffer data);
+  public KsqlClientException(String message) {
+    super(message);
+  }
 
-  void handleAck();
+  public KsqlClientException(String message, Throwable cause) {
+    super(message, cause);
+  }
 
-  void handleFlow(int bytes);
+  public KsqlClientException(Throwable cause) {
+    super(cause);
+  }
 
-  void handleClose();
-
+  public KsqlClientException(String message, Throwable cause, boolean enableSuppression,
+      boolean writableStackTrace) {
+    super(message, cause, enableSuppression, writableStackTrace);
+  }
 }
-

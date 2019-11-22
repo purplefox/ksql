@@ -39,7 +39,7 @@ public class ServerConnection extends ApiConnection {
   }
 
   @Override
-  protected void handleMessage(MessageFrame messageFrame) {
+  public void handleMessageFrame(MessageFrame messageFrame) {
     JsonObject message = messageFrame.payload;
     String type = message.getString("type");
     if (type == null) {
