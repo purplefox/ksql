@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ApiServer {
 
@@ -33,6 +34,7 @@ public class ApiServer {
 
   private final Map<String, MessageHandlerFactory> messageHandlerFactories;
   private final Vertx vertx;
+  private final AtomicReference<HttpServer> httpServer = new AtomicReference<>();
 
   public ApiServer(Map<String, MessageHandlerFactory> messageHandlerFactories,
       Vertx vertx) {
@@ -40,7 +42,7 @@ public class ApiServer {
     this.vertx = vertx;
   }
 
-  public CompletableFuture<Void> start() {
+  public synchronized CompletableFuture<Void> start() {
     executorService = Executors.newFixedThreadPool(100);
     System.out.println("Creating vertx");
     vertx.exceptionHandler(Throwable::printStackTrace);
@@ -49,7 +51,23 @@ public class ApiServer {
     vertx.createHttpServer().websocketHandler(this::handleWebsocket)
         .listen(8888, promise);
     Future<HttpServer> fut = promise.future();
-    return Utils.convertFuture(fut.map(s -> null));
+    return Utils.convertFuture(fut.map(server -> {
+      httpServer.set(server);
+      return null;
+    }));
+  }
+
+  public synchronized CompletableFuture<Void> stop() {
+    HttpServer server = this.httpServer.get();
+    if (server == null) {
+      throw new IllegalStateException("Not started");
+    }
+    return Utils.shutdownExecutorServiceAsync(executorService)
+        .thenCompose(v -> {
+          Promise<Void> promise = Promise.promise();
+          server.close(promise);
+          return Utils.convertFuture(promise.future());
+        });
   }
 
   private void handleWebsocket(ServerWebSocket serverWebSocket) {

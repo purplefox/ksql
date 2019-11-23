@@ -15,19 +15,25 @@
 
 package io.confluent.ksql.api.client;
 
-import io.confluent.ksql.api.flow.Subscriber;
-import io.vertx.core.json.JsonObject;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+public class KsqlDBClientException extends RuntimeException {
 
-public interface KSqlConnection {
+  public KsqlDBClientException() {
+  }
 
-  CompletableFuture<Integer> streamQuery(String query, boolean pull, Subscriber<Row> subscriber);
+  public KsqlDBClientException(String message) {
+    super(message);
+  }
 
-  CompletableFuture<List<Row>> executeQuery(String query);
+  public KsqlDBClientException(String message, Throwable cause) {
+    super(message, cause);
+  }
 
-  CompletableFuture<Void> insertInto(String target, JsonObject row);
+  public KsqlDBClientException(Throwable cause) {
+    super(cause);
+  }
 
-  InsertStream insertStream(String target);
-
+  public KsqlDBClientException(String message, Throwable cause, boolean enableSuppression,
+      boolean writableStackTrace) {
+    super(message, cause, enableSuppression, writableStackTrace);
+  }
 }

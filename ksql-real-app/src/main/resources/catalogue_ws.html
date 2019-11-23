@@ -1,0 +1,44 @@
+<!--
+  ~ Copyright 2011-2012 the original author or authors.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<html>
+<head><title>Catalogue using Websockets</title></head>
+<script>
+    var socket;
+    if (window.WebSocket) {
+        socket = new WebSocket("ws://localhost:8888/catalogue-ws");
+        socket.onmessage = function (event) {
+            //alert("Received data from websocket: " + event.data);
+
+             let div = document.createElement('div');
+             div.innerHTML = event.data;
+             document.body.append(div);
+        }
+        socket.onopen = function (event) {
+            //alert("Web Socket opened!");
+        };
+        socket.onclose = function (event) {
+            //alert("Web Socket closed.");
+        };
+    } else {
+        alert("Your browser does not support Websockets. (Use Chrome)");
+    }
+</script>
+<body>
+<h1>Catalogue using Websockets</h1>
+</body>
+
+</html>

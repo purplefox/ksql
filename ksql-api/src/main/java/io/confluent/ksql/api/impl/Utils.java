@@ -16,7 +16,11 @@
 package io.confluent.ksql.api.impl;
 
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class Utils {
 
@@ -31,4 +35,21 @@ public class Utils {
     });
     return jdkFuture;
   }
+
+  public static CompletableFuture<Void> shutdownExecutorServiceAsync(
+      ExecutorService executorService) {
+    final Promise<Void> promise = Promise.promise();
+    new Thread(() -> {
+      executorService.shutdown();
+      try {
+        if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
+          promise.fail(new TimeoutException("Timed out in shutting down executor service"));
+        }
+      } catch (Exception e) {
+        promise.fail(e);
+      }
+    }).start();
+    return Utils.convertFuture(promise.future());
+  }
+
 }

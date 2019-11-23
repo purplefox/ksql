@@ -13,16 +13,26 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.client;
+package io.confluent.ksql.api.impl;
 
-import io.confluent.ksql.api.client.impl.DefaultKsqlClient;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Handler;
 import java.util.concurrent.CompletableFuture;
 
-public interface KSqlClient {
+public class VertxCompletableFuture<T> extends CompletableFuture<T> implements
+    Handler<AsyncResult<T>> {
 
-  CompletableFuture<KSqlConnection> connectWebsocket(String host, int port);
-
-  static KSqlClient client() {
-    return new DefaultKsqlClient();
+  public VertxCompletableFuture() {
   }
+
+  @Override
+  public void handle(AsyncResult<T> ar) {
+    if (ar.succeeded()) {
+      complete(ar.result());
+    } else {
+      completeExceptionally(ar.cause());
+    }
+  }
+
 }
+

@@ -17,8 +17,8 @@ package io.confluent.ksql.api.client.impl;
 
 import io.confluent.ksql.api.ApiConnection;
 import io.confluent.ksql.api.client.InsertStream;
-import io.confluent.ksql.api.client.KSqlConnection;
-import io.confluent.ksql.api.client.KsqlClientException;
+import io.confluent.ksql.api.client.KsqlDBClientException;
+import io.confluent.ksql.api.client.KsqlDBConnection;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.flow.Subscriber;
 import io.confluent.ksql.api.flow.Subscription;
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 // CHECKSTYLE_RULES.OFF: ClassDataAbstractionCoupling
-public class ClientConnection extends ApiConnection implements KSqlConnection {
+public class ClientConnection extends ApiConnection implements KsqlDBConnection {
 
   // CHECKSTYLE_RULES.ON: ClassDataAbstractionCoupling
   private final Map<Integer, Consumer<JsonObject>> requestMap = new ConcurrentHashMap<>();
@@ -133,7 +133,7 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
     if (checkStatus(future, reply)) {
       Integer queryID = reply.getInteger("query-id");
       if (queryID == null) {
-        future.completeExceptionally(new KsqlClientException("No query-id in reply"));
+        future.completeExceptionally(new KsqlDBClientException("No query-id in reply"));
         return;
       }
       JsonArray columns = reply.getJsonArray("cols");
@@ -236,7 +236,7 @@ public class ClientConnection extends ApiConnection implements KSqlConnection {
       if (errMessage == null) {
         throw new IllegalStateException("No err-msg in err reply");
       }
-      future.completeExceptionally(new KsqlClientException(errMessage));
+      future.completeExceptionally(new KsqlDBClientException(errMessage));
       return false;
     } else {
       throw new IllegalStateException("Invalid status " + status);

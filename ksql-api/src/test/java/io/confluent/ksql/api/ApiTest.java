@@ -19,8 +19,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
-import io.confluent.ksql.api.client.KSqlClient;
-import io.confluent.ksql.api.client.KSqlConnection;
+import io.confluent.ksql.api.client.KsqlDBClient;
+import io.confluent.ksql.api.client.KsqlDBConnection;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.server.ApiServer;
 import io.vertx.core.Vertx;
@@ -41,7 +41,7 @@ public class ApiTest {
 
   private Vertx vertx;
   private ApiServer server;
-  private KSqlClient client;
+  private KsqlDBClient client;
 
   private volatile TestRowProvider testRowProvider;
   private volatile TestInserter testInserter;
@@ -59,7 +59,7 @@ public class ApiTest {
 
     server = new ApiServer(messageHandlerFactories, vertx);
     server.start().get();
-    client = KSqlClient.client();
+    client = KsqlDBClient.client();
   }
 
   @After
@@ -144,7 +144,7 @@ public class ApiTest {
     throw new TimeoutException("Timed out waiting for items");
   }
 
-  private CompletableFuture<KSqlConnection> connect() {
+  private CompletableFuture<KsqlDBConnection> connect() {
     return client.connectWebsocket("localhost", 8888);
   }
 

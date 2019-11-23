@@ -15,8 +15,8 @@
 
 package io.confluent.ksql.api.client.impl;
 
-import io.confluent.ksql.api.client.KSqlClient;
-import io.confluent.ksql.api.client.KSqlConnection;
+import io.confluent.ksql.api.client.KsqlDBClient;
+import io.confluent.ksql.api.client.KsqlDBConnection;
 import io.confluent.ksql.api.impl.Utils;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -24,7 +24,7 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.WebSocket;
 import java.util.concurrent.CompletableFuture;
 
-public class DefaultKsqlClient implements KSqlClient {
+public class DefaultKsqlClient implements KsqlDBClient {
 
   private final Vertx vertx;
 
@@ -37,9 +37,9 @@ public class DefaultKsqlClient implements KSqlClient {
   }
 
   @Override
-  public CompletableFuture<KSqlConnection> connectWebsocket(String host, int port) {
+  public CompletableFuture<KsqlDBConnection> connectWebsocket(String host, int port) {
     HttpClient client = vertx.createHttpClient();
-    Promise<KSqlConnection> promise = Promise.promise();
+    Promise<KsqlDBConnection> promise = Promise.promise();
     client.webSocket(port, host, "/ws-api", ar -> {
       if (ar.succeeded()) {
         WebSocket ws = ar.result();

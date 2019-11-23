@@ -32,7 +32,7 @@ import static org.apache.kafka.common.resource.ResourceType.TRANSACTIONAL_ID;
 import static org.junit.Assert.assertEquals;
 
 import io.confluent.common.utils.IntegrationTest;
-import io.confluent.ksql.api.client.KSqlClient;
+import io.confluent.ksql.api.client.KsqlDBClient;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.flow.Subscriber;
 import io.confluent.ksql.api.flow.Subscription;
@@ -139,7 +139,7 @@ public class ApiIntegrationiTest {
   @ClassRule
   public static final RuleChain CHAIN = RuleChain.outerRule(TEST_HARNESS).around(REST_APP);
 
-  private KSqlClient client;
+  private KsqlDBClient client;
 
   @BeforeClass
   public static void setUpClass() {
@@ -155,7 +155,7 @@ public class ApiIntegrationiTest {
 
   @Before
   public void setUp() {
-    client = KSqlClient.client();
+    client = KsqlDBClient.client();
   }
 
   @After

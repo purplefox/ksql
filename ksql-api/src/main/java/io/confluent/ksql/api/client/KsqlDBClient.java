@@ -15,25 +15,14 @@
 
 package io.confluent.ksql.api.client;
 
-public class KsqlClientException extends RuntimeException {
+import io.confluent.ksql.api.client.impl.DefaultKsqlClient;
+import java.util.concurrent.CompletableFuture;
 
-  public KsqlClientException() {
-  }
+public interface KsqlDBClient {
 
-  public KsqlClientException(String message) {
-    super(message);
-  }
+  CompletableFuture<KsqlDBConnection> connectWebsocket(String host, int port);
 
-  public KsqlClientException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
-  public KsqlClientException(Throwable cause) {
-    super(cause);
-  }
-
-  public KsqlClientException(String message, Throwable cause, boolean enableSuppression,
-      boolean writableStackTrace) {
-    super(message, cause, enableSuppression, writableStackTrace);
+  static KsqlDBClient client() {
+    return new DefaultKsqlClient();
   }
 }
