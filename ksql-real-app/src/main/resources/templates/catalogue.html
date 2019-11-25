@@ -1,0 +1,27 @@
+<html>
+<head>
+  <title>Catalogue</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+</head>
+<body>
+<h1>Catalogue</h1>
+
+<table>
+  <thead>
+  <tr>
+    <th>Name</th>
+    <th>Price</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="item: ${line_items}">
+    <td th:text="${item.values().getString(1)}">Oranges</td>
+    <td th:text="${item.values().getDouble(2)}">0.99</td>
+    <td><a href="" th:href="@{add-to-basket(itemid=${item.values().getInteger(0)})}">Add to
+      basket</a></td>
+  </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

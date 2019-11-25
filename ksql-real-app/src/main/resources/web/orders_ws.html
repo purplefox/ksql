@@ -15,11 +15,11 @@
   -->
 
 <html>
-<head><title>Catalogue using Websockets</title></head>
+<head><title>Orders report using Websockets</title></head>
 <script>
     var socket;
     if (window.WebSocket) {
-        socket = new WebSocket("ws://localhost:8888/catalogue-ws");
+        socket = new WebSocket("ws://localhost:8080/orders-ws");
         socket.onmessage = function (event) {
             //alert("Received data from websocket: " + event.data);
 
@@ -36,9 +36,10 @@
     } else {
         alert("Your browser does not support Websockets. (Use Chrome)");
     }
+
 </script>
 <body>
-<h1>Catalogue using Websockets</h1>
+<h1>Orders report using Websockets</h1>
 </body>
 
 </html>

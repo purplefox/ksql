@@ -90,6 +90,7 @@ public class FakeKsqlDBServer {
 
     @Override
     protected Inserter createInserter(Integer channelID, String target) {
+      System.out.println("Creating inserter for " + channelID);
       return fakeData.getInserter(target);
     }
 

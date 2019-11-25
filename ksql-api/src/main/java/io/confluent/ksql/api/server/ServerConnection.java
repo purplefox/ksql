@@ -57,7 +57,9 @@ public class ServerConnection extends ApiConnection {
 
   @Override
   protected void runMessageHandler(Runnable messageHandler) {
-    actionExecutor.execute(messageHandler);
+    //actionExecutor.execute(messageHandler);
+    // for now just execute directly
+    messageHandler.run();
   }
 
 }

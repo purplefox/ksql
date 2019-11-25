@@ -73,7 +73,7 @@ public class ApiServer {
   private void handleWebsocket(ServerWebSocket serverWebSocket) {
     ServerConnection conn = new ServerConnection(buff -> {
       serverWebSocket.write(buff);
-      System.out.println("Wrote buffer from server");
+      System.out.println("Wrote buffer from server " + buff);
     }, executorService, messageHandlerFactories);
     serverWebSocket.handler(buff -> {
       try {

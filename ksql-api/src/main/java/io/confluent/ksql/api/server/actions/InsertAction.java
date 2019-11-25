@@ -34,8 +34,10 @@ public abstract class InsertAction implements ChannelHandler {
 
   @Override
   public void handleData(Buffer data) {
+    System.out.println("Handling data in insert action on server");
     JsonObject row = new JsonObject(data);
     inserter.insertRow(row);
+    System.out.println("Inserted row in inserter");
     apiConnection.writeAckFrame(channelID);
   }
 
