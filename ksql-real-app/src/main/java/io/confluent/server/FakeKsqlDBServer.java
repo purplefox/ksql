@@ -42,7 +42,6 @@ public class FakeKsqlDBServer {
         System.out.println("Fake ksqlDB Server started");
       }
     });
-    System.in.read();
   }
 
   public FakeKsqlDBServer() {
@@ -83,7 +82,7 @@ public class FakeKsqlDBServer {
 
     private final FakeData fakeData;
 
-    public FakeInsertAction(ApiConnection apiConnection, JsonObject message, FakeData fakeData) {
+    FakeInsertAction(ApiConnection apiConnection, JsonObject message, FakeData fakeData) {
       super(apiConnection, message);
       this.fakeData = fakeData;
     }

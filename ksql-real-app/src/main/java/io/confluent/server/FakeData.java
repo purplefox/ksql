@@ -42,13 +42,13 @@ public class FakeData {
 
   private final Stream basketEvents =
       new Stream("basket_event",
-          new JsonArray().add("user_id").add("item_id").add("amount"),
-          new JsonArray().add("INT").add("INT").add("INT"));
+          new JsonArray().add("user_id").add("item_id").add("name").add("price").add("amount"),
+          new JsonArray().add("INT").add("INT").add("STRING").add("DOUBLE").add("INT"));
 
   private final Table<Integer> userBaskets =
       new Table<>("user_basket",
-          new JsonArray().add("user_id").add("item_id").add("amount"),
-          new JsonArray().add("INT").add("INT").add("INT"),
+          new JsonArray().add("user_id").add("item_id").add("name").add("price").add("amount"),
+          new JsonArray().add("INT").add("INT").add("STRING").add("DOUBLE").add("INT"),
           this::aggregateBasket);
 
   private final Stream orderEvents =
@@ -58,8 +58,8 @@ public class FakeData {
 
   private final Table<Integer> orderReport =
       new Table<>("order_report",
-          new JsonArray().add("item_id").add("item_name").add("sold"),
-          new JsonArray().add("INT").add("STRING").add("DECIMAL(10, 2)"),
+          new JsonArray().add("count"),
+          new JsonArray().add("INT"),
           this::aggregateOrderReport);
 
   public FakeData() {
@@ -73,13 +73,20 @@ public class FakeData {
       return new QueryRowProvider(123, lineItems, pull);
     } else if (queryString.startsWith("SELECT * FROM USER_BASKET WHERE USER_ID =")) {
       return new QueryRowProvider(345, userBaskets, pull);
+    } else if (queryString.startsWith("SELECT * FROM ORDER_REPORT EMIT CHANGES")) {
+      return new QueryRowProvider(567, orderReport, pull);
+    } else if (queryString.startsWith("SELECT * FROM ORDER_EVENT EMIT CHANGES")) {
+      return new QueryRowProvider(768, orderEvents, pull);
     }
+
     throw new IllegalArgumentException("Unknown query " + queryString);
   }
 
   public Inserter getInserter(String containerName) {
     if (containerName.equals("basket_events")) {
       return new FakeInserter(basketEvents);
+    } else if (containerName.equals("order_event")) {
+      return new FakeInserter(orderEvents);
     }
     throw new IllegalArgumentException("Invalid container " + containerName);
   }
@@ -157,14 +164,15 @@ public class FakeData {
   }
 
   JsonArray aggregateBasket(Map<Integer, JsonArray> rows, JsonArray row) {
-    Integer key = row.getInteger(0);
+    // TODO we should use userID in key!
+    Integer key = row.getInteger(1);
     JsonArray prev = rows.get(key);
     if (prev == null) {
       rows.put(key, row);
       return row;
     } else {
-      int amount = prev.getInteger(1);
-      row.set(1, row.getInteger(1) + amount);
+      int amount = prev.getInteger(4);
+      row.set(4, row.getInteger(4) + amount);
       rows.put(key, row);
       return row;
     }
@@ -176,17 +184,16 @@ public class FakeData {
   }
 
   JsonArray aggregateOrderReport(Map<Integer, JsonArray> rows, JsonArray row) {
-    Integer key = row.getInteger(0);
-    JsonArray prev = rows.get(key);
+    // Just do a count for now
+    JsonArray prev = rows.get(0);
     if (prev == null) {
-      rows.put(key, row);
-      return row;
+      prev = new JsonArray().add(1);
+      rows.put(0, prev);
     } else {
-      int amount = prev.getInteger(1);
-      row.set(1, row.getInteger(1) + amount);
-      rows.put(key, row);
-      return row;
+      int count = prev.getInteger(0);
+      prev.set(0, 1 + count);
     }
+    return prev;
   }
 
   static class Table<T extends Comparable<?>> implements Container {
@@ -307,7 +314,6 @@ public class FakeData {
     }
   }
 
-
   class FakeInserter implements Inserter {
 
     private final Stream container;
@@ -318,7 +324,17 @@ public class FakeData {
 
     @Override
     public void insertRow(JsonObject row) {
-      container.addRow(new JsonArray(new ArrayList<>(row.getMap().values())));
+      JsonArray arr = new JsonArray();
+      if (container.name.equals("basket_event")) {
+        arr.add(row.getInteger("userID"))
+            .add(row.getInteger("itemID"))
+            .add(row.getString("itemName")).add(row.getDouble("itemPrice"))
+            .add(row.getInteger("amount"));
+      } else if (container.name.equals("order_event")) {
+        arr.add(row.getInteger("userID"))
+            .add(row.getJsonArray("items"));
+      }
+      container.addRow(arr);
     }
   }
 

@@ -17,7 +17,9 @@
   <tr th:each="item: ${line_items}">
     <td th:text="${item.values().getString(1)}">Oranges</td>
     <td th:text="${item.values().getDouble(2)}">0.99</td>
-    <td><a href="" th:href="@{add-to-basket(itemid=${item.values().getInteger(0)})}">Add to
+    <td><a href=""
+           th:href="@{add-to-basket(itemid=${item.values().getInteger(0)}, itemname=${item.values().getString(1)}, itemprice=${item.values().getDouble(2)})}">Add
+      to
       basket</a></td>
   </tr>
   </tbody>
