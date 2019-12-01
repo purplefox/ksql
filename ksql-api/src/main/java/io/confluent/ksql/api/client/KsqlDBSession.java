@@ -15,10 +15,23 @@
 
 package io.confluent.ksql.api.client;
 
-public interface KsqlDBConnection {
+import io.vertx.core.json.JsonObject;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
-  KsqlDBSession session();
+public interface KsqlDBSession {
 
-  void close();
+  CompletableFuture<QueryResult> streamQuery(String query, boolean pull);
+
+  CompletableFuture<List<Row>> executeQuery(String query);
+
+  CompletableFuture<Void> insertInto(String target, JsonObject row);
+
+  // TODO reactive insert streams
+
+  // TODO EOS consumers
+
+  // TODO transactions
+
 
 }

@@ -15,10 +15,18 @@
 
 package io.confluent.ksql.api.client;
 
-public interface KsqlDBConnection {
+import io.confluent.ksql.api.flow.Publisher;
+import java.util.List;
 
-  KsqlDBSession session();
+public interface QueryResult extends Publisher<Row> {
 
-  void close();
+  int queryID();
+
+  // Blocking API
+  List<Row> poll(int num);
+
+  // Blocking API
+  Row poll();
+
 
 }

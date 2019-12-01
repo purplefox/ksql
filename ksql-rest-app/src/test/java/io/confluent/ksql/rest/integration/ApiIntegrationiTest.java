@@ -33,6 +33,7 @@ import static org.junit.Assert.assertEquals;
 
 import io.confluent.common.utils.IntegrationTest;
 import io.confluent.ksql.api.client.KsqlDBClient;
+import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.flow.Subscriber;
 import io.confluent.ksql.api.flow.Subscription;
@@ -169,7 +170,7 @@ public class ApiIntegrationiTest {
 
     CompletableFuture<List<Row>> queryFut =
         client.connectWebsocket("localhost", 8888)
-            .thenCompose(con -> con.executeQuery(
+            .thenCompose(con -> con.session().executeQuery(
                 "SELECT * from " + AGG_TABLE + " WHERE ROWKEY='" + AN_AGG_KEY + "';"));
 
     List<Row> items = queryFut.get();
@@ -185,14 +186,14 @@ public class ApiIntegrationiTest {
 
     TestSubscriber<Row> subscriber = new TestSubscriber<>();
 
-    CompletableFuture<Integer> queryFut =
+    CompletableFuture<QueryResult> queryFut =
         client.connectWebsocket("localhost", 8888)
-            .thenCompose(con -> con.streamQuery(
-                "SELECT * FROM " + PAGE_VIEW_STREAM + " EMIT CHANGES;", false,
-                subscriber));
+            .thenCompose(con -> con.session().streamQuery(
+                "SELECT * FROM " + PAGE_VIEW_STREAM + " EMIT CHANGES;", false));
 
-    Integer res = queryFut.get();
-    assertEquals(123, res.intValue());
+    QueryResult res = queryFut.get();
+    assertEquals(123, res.queryID());
+    res.subscribe(subscriber);
 
     List<Row> items = subscriber.waitForItems(2, 10000);
     assertEquals(7, items.size());

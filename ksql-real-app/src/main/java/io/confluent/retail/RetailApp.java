@@ -17,6 +17,8 @@ package io.confluent.retail;
 
 import io.confluent.ksql.api.client.KsqlDBClient;
 import io.confluent.ksql.api.client.KsqlDBConnection;
+import io.confluent.ksql.api.client.KsqlDBSession;
+import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.impl.VertxCompletableFuture;
 import io.vertx.core.AbstractVerticle;
@@ -99,11 +101,8 @@ public class RetailApp extends AbstractVerticle {
     routingContext.response().sendFile("web/index.html");
   }
 
-  /*
-  This is created from a pull query. Page is generated and returned from browser
-   */
   private void serveCatalogue(RoutingContext routingContext) {
-    connection.executeQuery("SELECT * FROM LINE_ITEM")
+    session().executeQuery("SELECT * FROM LINE_ITEM")
         .thenAccept(lineItems -> generateCataloguePage(routingContext, lineItems))
         .exceptionally(t -> {
           t.printStackTrace();
@@ -152,7 +151,7 @@ public class RetailApp extends AbstractVerticle {
   private void handlePlaceOrder(RoutingContext routingContext) {
     System.out.println("In handle place order");
     int userID = 23;
-    connection
+    session()
         .executeQuery("SELECT * FROM USER_BASKET WHERE USER_ID = 23")
         .thenApply(rows -> {
           List<JsonArray> list = rows.stream().map(Row::values).collect(Collectors.toList());
@@ -169,7 +168,7 @@ public class RetailApp extends AbstractVerticle {
   }
 
   private void sendToTopic(String topicName, JsonObject message) {
-    connection.insertInto(topicName, message);
+    session().insertInto(topicName, message);
   }
 
   private void handleWebsocket(ServerWebSocket webSocket) {
@@ -185,19 +184,38 @@ public class RetailApp extends AbstractVerticle {
   }
 
   private void handleGetBasketWs(ServerWebSocket webSocket, int userID) {
-    connection
-        .streamQuery("SELECT * FROM USER_BASKET WHERE USER_ID = " + userID + " EMIT CHANGES", false,
-            new QuerySubscriber(webSocket));
+    session()
+        .streamQuery("SELECT * FROM USER_BASKET WHERE USER_ID = " + userID + " EMIT CHANGES", false)
+        .thenAccept(qr -> qr.subscribe(new QuerySubscriber(webSocket)))
+        .exceptionally(this::handleException);
+  }
+
+  private void queryStreamBlockingVersion(ServerWebSocket webSocket, int userID) throws Exception {
+    QueryResult res = session()
+        .streamQuery("SELECT * FROM USER_BASKET WHERE USER_ID = " + userID + " EMIT CHANGES", false)
+        .get();
+    res.subscribe(new QuerySubscriber(webSocket));
+  }
+
+  Void handleException(Throwable t) {
+    t.printStackTrace();
+    return null;
   }
 
   private void handleGetOrderCount(ServerWebSocket webSocket) {
-    connection.streamQuery("SELECT * FROM ORDER_REPORT EMIT CHANGES", false,
-        new QuerySubscriber(webSocket));
+    session().streamQuery("SELECT * FROM ORDER_REPORT EMIT CHANGES", false)
+        .thenAccept(qr -> qr.subscribe(new QuerySubscriber(webSocket)))
+        .exceptionally(this::handleException);
   }
 
   private void handleGetOrders(ServerWebSocket webSocket) {
-    connection.streamQuery("SELECT * FROM ORDER_EVENT EMIT CHANGES", false,
-        new QuerySubscriber(webSocket));
+    session().streamQuery("SELECT * FROM ORDER_EVENT EMIT CHANGES", false)
+        .thenAccept(qr -> qr.subscribe(new QuerySubscriber(webSocket)))
+        .exceptionally(this::handleException);
+  }
+
+  private KsqlDBSession session() {
+    return connection.session();
   }
 
 }

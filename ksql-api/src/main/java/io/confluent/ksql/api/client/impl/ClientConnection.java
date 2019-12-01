@@ -16,9 +16,10 @@
 package io.confluent.ksql.api.client.impl;
 
 import io.confluent.ksql.api.ApiConnection;
-import io.confluent.ksql.api.client.InsertStream;
 import io.confluent.ksql.api.client.KsqlDBClientException;
 import io.confluent.ksql.api.client.KsqlDBConnection;
+import io.confluent.ksql.api.client.KsqlDBSession;
+import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.flow.Subscriber;
 import io.confluent.ksql.api.flow.Subscription;
@@ -52,59 +53,71 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
   }
 
   @Override
-  public CompletableFuture<Integer> streamQuery(String query, boolean pull,
-      Subscriber<Row> subscriber) {
-    int channelID = channelIDSequence.getAndIncrement();
-    int requestID = requestIDSequence.getAndIncrement();
-
-    JsonObject message = new JsonObject()
-        .put("type", "query")
-        .put("query", query)
-        .put("channel-id", channelID)
-        .put("request-id", requestID)
-        .put("pull", pull);
-    CompletableFuture<Integer> future = new CompletableFuture<>();
-    requestMap.put(requestID, jo -> handleQueryReply(future, jo, subscriber, channelID));
-    writeMessage(message);
-    return future;
+  public KsqlDBSession session() {
+    return new Session();
   }
 
   @Override
-  public CompletableFuture<List<Row>> executeQuery(String query) {
-    CompletableFuture<List<Row>> futRes = new CompletableFuture<>();
-    CompletableFuture<Integer> fut = streamQuery(query, true, new GatheringSubscriber(futRes));
-    fut.exceptionally(t -> {
-      futRes.completeExceptionally(t);
-      return -1;
-    });
-    return futRes;
+  public void close() {
   }
 
-  @Override
-  public synchronized CompletableFuture<Void> insertInto(String target, JsonObject row) {
-    CompletableFuture<Void> future = new CompletableFuture<>();
-    InsertChannelHandler handler = insertChannels.get(target);
-    if (handler == null) {
+
+  class Session implements KsqlDBSession {
+
+    @Override
+    public CompletableFuture<QueryResult> streamQuery(String query, boolean pull) {
       int channelID = channelIDSequence.getAndIncrement();
       int requestID = requestIDSequence.getAndIncrement();
-      JsonObject message = new JsonObject()
-          .put("type", "insert")
-          .put("target", target)
-          .put("channel-id", channelID)
-          .put("request-id", requestID);
-      requestMap.put(requestID, jo -> handleInsertReply(future, jo));
-      handler = new InsertChannelHandler(future, channelID);
-      registerChannelHandler(channelID, handler);
-      insertChannels.put(target, handler);
-      writeMessage(message);
-    }
-    handler.sendInsertData(row);
-    return future;
-  }
 
-  @Override
-  public InsertStream insertStream(String containerName) {
-    return null;
+      JsonObject message = new JsonObject()
+          .put("type", "query")
+          .put("query", query)
+          .put("channel-id", channelID)
+          .put("request-id", requestID)
+          .put("pull", pull);
+      CompletableFuture<QueryResult> future = new CompletableFuture<>();
+      requestMap
+          .put(requestID, jo -> handleQueryReply(future, jo, channelID));
+      writeMessage(message);
+      return future;
+    }
+
+    @Override
+    public CompletableFuture<List<Row>> executeQuery(String query) {
+      CompletableFuture<List<Row>> futRes = new CompletableFuture<>();
+      CompletableFuture<QueryResult> fut = streamQuery(query, true);
+      fut.whenComplete((qr, t) -> {
+        if (t != null) {
+          futRes.completeExceptionally(t);
+        } else {
+          qr.subscribe(new GatheringSubscriber(futRes));
+        }
+      });
+      return futRes;
+    }
+
+    @Override
+    public synchronized CompletableFuture<Void> insertInto(String target, JsonObject row) {
+      CompletableFuture<Void> future = new CompletableFuture<>();
+      InsertChannelHandler handler = insertChannels.get(target);
+      if (handler == null) {
+        int channelID = channelIDSequence.getAndIncrement();
+        int requestID = requestIDSequence.getAndIncrement();
+        JsonObject message = new JsonObject()
+            .put("type", "insert")
+            .put("target", target)
+            .put("channel-id", channelID)
+            .put("request-id", requestID);
+        requestMap.put(requestID, jo -> handleInsertReply(future, jo));
+        handler = new InsertChannelHandler(future, channelID);
+        registerChannelHandler(channelID, handler);
+        insertChannels.put(target, handler);
+        writeMessage(message);
+      }
+      handler.sendInsertData(row);
+      return future;
+    }
+
   }
 
   @Override
@@ -128,8 +141,8 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
     }
   }
 
-  private void handleQueryReply(CompletableFuture<Integer> future, JsonObject reply,
-      Subscriber<Row> subscriber, int channelID) {
+  private void handleQueryReply(CompletableFuture<QueryResult> future, JsonObject reply,
+      int channelID) {
     if (checkStatus(future, reply)) {
       Integer queryID = reply.getInteger("query-id");
       if (queryID == null) {
@@ -145,12 +158,11 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
         throw new IllegalStateException("No col-types in query reply");
       }
 
-      QueryChannelHandler handler = new QueryChannelHandler(subscriber, channelID,
+      QueryChannelHandler handler = new QueryChannelHandler(channelID, queryID,
           new QueryResultHeader(columns, colTypes));
       registerChannelHandler(channelID, handler);
-      subscriber.onSubscribe(new QuerySubscription(handler));
 
-      future.complete(queryID);
+      future.complete(handler);
     }
   }
 
@@ -287,19 +299,20 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
     }
   }
 
-  class QueryChannelHandler implements ChannelHandler {
+  class QueryChannelHandler implements ChannelHandler, QueryResult {
 
-    private final Subscriber<Row> subscriber;
     private final int channelID;
+    private final int queryID;
     private final Queue<Buffer> incomingData = new ConcurrentLinkedQueue<>();
     private final QueryResultHeader header;
     private long tokenDemand;
     private boolean closed;
+    private Subscriber<Row> subscriber;
 
-    QueryChannelHandler(Subscriber<Row> subscriber, int channelID,
+    QueryChannelHandler(int channelID, int queryID,
         QueryResultHeader queryResultHeader) {
-      this.subscriber = subscriber;
       this.channelID = channelID;
+      this.queryID = queryID;
       this.header = queryResultHeader;
     }
 
@@ -360,6 +373,26 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
     public void run() {
     }
 
+    @Override
+    public int queryID() {
+      return queryID;
+    }
+
+    @Override
+    public List<Row> poll(int num) {
+      return null;
+    }
+
+    @Override
+    public Row poll() {
+      return null;
+    }
+
+    @Override
+    public synchronized void subscribe(Subscriber<Row> subscriber) {
+      this.subscriber = subscriber;
+      subscriber.onSubscribe(new QuerySubscription(this));
+    }
   }
 
   private static class QuerySubscription implements Subscription {

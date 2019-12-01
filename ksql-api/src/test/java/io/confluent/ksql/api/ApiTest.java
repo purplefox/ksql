@@ -21,6 +21,7 @@ import static org.junit.Assert.assertFalse;
 import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
 import io.confluent.ksql.api.client.KsqlDBClient;
 import io.confluent.ksql.api.client.KsqlDBConnection;
+import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.server.ApiServer;
 import io.vertx.core.Vertx;
@@ -77,12 +78,15 @@ public class ApiTest {
 
     TestSubscriber<Row> subscriber = new TestSubscriber<>();
 
-    CompletableFuture<Integer> queryFut =
+    CompletableFuture<QueryResult> queryFut =
         connect()
-            .thenCompose(con -> con.streamQuery("select * from line_items", false, subscriber));
+            .thenCompose(
+                con -> con.session().streamQuery("select * from line_items", false));
 
-    Integer res = queryFut.get();
-    assertEquals(queryID, res.intValue());
+    QueryResult res = queryFut.get();
+    assertEquals(queryID, res.queryID());
+
+    res.subscribe(subscriber);
 
     List<Row> items = subscriber.waitForItems(10, 10000);
     assertEquals(10, items.size());
@@ -100,7 +104,7 @@ public class ApiTest {
     testRowProvider = new TestRowProvider(colNames, colTypes, rows, queryID, true);
 
     CompletableFuture<List<Row>> queryFut =
-        connect().thenCompose(con -> con.executeQuery("select * from line_items"));
+        connect().thenCompose(con -> con.session().executeQuery("select * from line_items"));
 
     List<Row> items = queryFut.get();
     assertEquals(rows.size(), items.size());
@@ -121,7 +125,7 @@ public class ApiTest {
 
     JsonObject row = new JsonObject();
 
-    connect().thenCompose(con -> con.insertInto("line_items", row));
+    connect().thenCompose(con -> con.session().insertInto("line_items", row));
 
     List<JsonObject> items = waitForItems(1, 10000, testInserter);
     assertEquals(1, items.size());
