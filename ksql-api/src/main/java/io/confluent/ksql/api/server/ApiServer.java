@@ -24,13 +24,9 @@ import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.ServerWebSocket;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ApiServer {
-
-  private ExecutorService executorService;
 
   private final Map<Short, ChannelHandlerFactory> channelHandlerFactories;
   private final Vertx vertx;
@@ -43,10 +39,7 @@ public class ApiServer {
   }
 
   public synchronized CompletableFuture<Void> start() {
-    executorService = Executors.newFixedThreadPool(100);
-    System.out.println("Creating vertx");
     vertx.exceptionHandler(Throwable::printStackTrace);
-    System.out.println("Created vertx");
     Promise<HttpServer> promise = Promise.promise();
     vertx.createHttpServer().websocketHandler(this::handleWebsocket)
         .listen(8888, promise);
@@ -59,22 +52,13 @@ public class ApiServer {
 
   public synchronized CompletableFuture<Void> stop() {
     HttpServer server = this.httpServer.get();
-    if (server == null) {
-      throw new IllegalStateException("Not started");
-    }
-    return Utils.shutdownExecutorServiceAsync(executorService)
-        .thenCompose(v -> {
-          Promise<Void> promise = Promise.promise();
-          server.close(promise);
-          return Utils.convertFuture(promise.future());
-        });
+    Promise<Void> promise = Promise.promise();
+    server.close(promise);
+    return Utils.convertFuture(promise.future());
   }
 
   private void handleWebsocket(ServerWebSocket serverWebSocket) {
-    ServerConnection conn = new ServerConnection(buff -> {
-      serverWebSocket.write(buff);
-      System.out.println("Wrote buffer from server " + buff);
-    }, channelHandlerFactories);
+    ServerConnection conn = new ServerConnection(serverWebSocket::write, channelHandlerFactories);
     serverWebSocket.handler(buff -> {
       try {
         conn.handleBuffer(buff);
