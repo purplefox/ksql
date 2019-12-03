@@ -34,6 +34,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.templ.thymeleaf.ThymeleafTemplateEngine;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class RetailApp extends AbstractVerticle {
@@ -74,7 +75,7 @@ public class RetailApp extends AbstractVerticle {
 
   private Router setupRouter() {
     Router router = Router.router(vertx);
-    router.route(HttpMethod.GET, "/").handler(this::serveIndexPage);
+    router.route(HttpMethod.GET, "/").handler(this::serveIndex);
     router.route(HttpMethod.GET, "/catalogue").handler(this::serveCatalogue);
     router.route(HttpMethod.GET, "/add-to-basket").handler(this::handleAddToBasket);
     router.route(HttpMethod.GET, "/place-order").handler(this::handlePlaceOrder);
@@ -85,29 +86,14 @@ public class RetailApp extends AbstractVerticle {
     return router;
   }
 
-  private synchronized CompletableFuture<KsqlDBConnection> connect() {
-    if (connection != null) {
-      return CompletableFuture.completedFuture(connection);
-    } else {
-      return client.connectWebsocket("localhost", 8888);
-    }
-  }
-
-  private void handleFailure(RoutingContext routingContext) {
-    routingContext.failure().printStackTrace();
-  }
-
-  private void serveIndexPage(RoutingContext routingContext) {
+  private void serveIndex(RoutingContext routingContext) {
     routingContext.response().sendFile("web/index.html");
   }
 
   private void serveCatalogue(RoutingContext routingContext) {
     session().executeQuery("SELECT * FROM LINE_ITEM")
         .thenAccept(lineItems -> generateCataloguePage(routingContext, lineItems))
-        .exceptionally(t -> {
-          t.printStackTrace();
-          return null;
-        });
+        .exceptionally(this::handleException);
   }
 
   private void generateCataloguePage(RoutingContext routingContext, List<Row> lineItems) {
@@ -135,7 +121,6 @@ public class RetailApp extends AbstractVerticle {
   }
 
   private void handleAddToBasket(RoutingContext routingContext) {
-    System.out.println("In handle add to basket");
     String itemID = routingContext.request().getParam("itemid");
     String itemName = routingContext.request().getParam("itemname");
     String itemPrice = routingContext.request().getParam("itemprice");
@@ -149,7 +134,6 @@ public class RetailApp extends AbstractVerticle {
   }
 
   private void handlePlaceOrder(RoutingContext routingContext) {
-    System.out.println("In handle place order");
     int userID = 23;
     session()
         .executeQuery("SELECT * FROM USER_BASKET WHERE USER_ID = 23")
@@ -162,7 +146,6 @@ public class RetailApp extends AbstractVerticle {
           return order;
         })
         .thenAccept(order -> {
-          System.out.println("Placing order: " + order);
           sendToTopic("order_event", order);
         });
   }
@@ -186,32 +169,33 @@ public class RetailApp extends AbstractVerticle {
   private void handleGetBasketWs(ServerWebSocket webSocket, int userID) {
     session()
         .streamQuery("SELECT * FROM USER_BASKET WHERE USER_ID = " + userID + " EMIT CHANGES", false)
-        .thenAccept(qr -> qr.subscribe(new QuerySubscriber(webSocket)))
+        .thenAccept(websocketConsumer(webSocket))
         .exceptionally(this::handleException);
   }
 
-  private void queryStreamBlockingVersion(ServerWebSocket webSocket, int userID) throws Exception {
-    QueryResult res = session()
-        .streamQuery("SELECT * FROM USER_BASKET WHERE USER_ID = " + userID + " EMIT CHANGES", false)
-        .get();
-    res.subscribe(new QuerySubscriber(webSocket));
+  private void handleFailure(RoutingContext routingContext) {
+    routingContext.failure().printStackTrace();
   }
 
-  Void handleException(Throwable t) {
+  private Void handleException(Throwable t) {
     t.printStackTrace();
     return null;
   }
 
   private void handleGetOrderCount(ServerWebSocket webSocket) {
     session().streamQuery("SELECT * FROM ORDER_REPORT EMIT CHANGES", false)
-        .thenAccept(qr -> qr.subscribe(new QuerySubscriber(webSocket)))
+        .thenAccept(websocketConsumer(webSocket))
         .exceptionally(this::handleException);
   }
 
   private void handleGetOrders(ServerWebSocket webSocket) {
     session().streamQuery("SELECT * FROM ORDER_EVENT EMIT CHANGES", false)
-        .thenAccept(qr -> qr.subscribe(new QuerySubscriber(webSocket)))
+        .thenAccept(websocketConsumer(webSocket))
         .exceptionally(this::handleException);
+  }
+
+  private Consumer<QueryResult> websocketConsumer(ServerWebSocket webSocket) {
+    return qr -> qr.setConsumer(row -> webSocket.writeTextMessage(row.values().toString()));
   }
 
   private KsqlDBSession session() {

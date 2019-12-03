@@ -20,10 +20,11 @@ import io.confluent.ksql.api.client.KsqlDBConnection;
 import io.confluent.ksql.api.client.KsqlDBSession;
 import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
+import java.util.List;
 
 public class Examples {
 
-  public void pullQueryAsync() {
+  public void queryStreamAsync() {
     KsqlDBClient client = KsqlDBClient.client();
     client.connectWebsocket("localhost", 8080)
         .thenCompose(
@@ -34,13 +35,36 @@ public class Examples {
         .exceptionally(this::handleException);
   }
 
-  public void pullQueryBlocking() throws Exception {
+  public void queryStreamBlocking() throws Exception {
     KsqlDBClient client = KsqlDBClient.client();
     KsqlDBConnection conn = client.connectWebsocket("localhost", 8080).get();
     KsqlDBSession session = conn.session();
     QueryResult queryResult = session.streamQuery("select * from line_items", false).get();
     Row row;
     while ((row = queryResult.poll()) != null) {
+      System.out.println(row);
+    }
+  }
+
+  public void queryExecuteAsync() {
+    KsqlDBClient client = KsqlDBClient.client();
+    client.connectWebsocket("localhost", 8080)
+        .thenCompose(
+            con -> con.session().executeQuery("select * from line_items"))
+        .thenAccept(results -> {
+          for (Row row : results) {
+            System.out.println(row);
+          }
+        })
+        .exceptionally(this::handleException);
+  }
+
+  public void queryExecuteSync() throws Exception {
+    KsqlDBClient client = KsqlDBClient.client();
+    KsqlDBConnection conn = client.connectWebsocket("localhost", 8080).get();
+    KsqlDBSession session = conn.session();
+    List<Row> results = session.executeQuery("select * from line_items").get();
+    for (Row row : results) {
       System.out.println(row);
     }
   }

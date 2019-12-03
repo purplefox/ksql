@@ -79,7 +79,7 @@ public class DefaultKsqlClient implements KsqlDBClient {
   }
 
   @Override
-  public CompletableFuture<KsqlDBConnection> connectTCP(String host, int port) {
+  public CompletableFuture<KsqlDBConnection> connectTcp(String host, int port) {
     // TODO
     return null;
   }

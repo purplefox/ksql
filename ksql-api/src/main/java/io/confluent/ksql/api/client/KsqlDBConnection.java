@@ -23,7 +23,7 @@ public interface KsqlDBConnection {
 
   KsqlDBSession session();
 
-  CompletableFuture<Void> executeDDL(String command);
+  CompletableFuture<Void> executeDdl(String command);
 
   CompletableFuture<JsonObject> describe(String target);
 

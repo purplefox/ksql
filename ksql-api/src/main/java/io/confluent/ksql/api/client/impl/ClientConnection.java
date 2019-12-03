@@ -44,7 +44,7 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
   }
 
   @Override
-  public CompletableFuture<Void> executeDDL(String command) {
+  public CompletableFuture<Void> executeDdl(String command) {
     return null;
   }
 
@@ -104,13 +104,13 @@ public class ClientConnection extends ApiConnection implements KsqlDBConnection 
       InsertChannelHandler handler = insertChannels.get(target);
       if (handler == null) {
         int channelID = channelIDSequence.getAndIncrement();
+        handler = new InsertChannelHandler(channelID, future, ClientConnection.this);
+        registerChannelHandler(channelID, handler);
+        insertChannels.put(target, handler);
         JsonObject message = new JsonObject()
             .put("type", "insert")
             .put("target", target)
             .put("channel-id", channelID);
-        handler = new InsertChannelHandler(channelID, future, ClientConnection.this);
-        registerChannelHandler(channelID, handler);
-        insertChannels.put(target, handler);
         writeRequestFrame(channelID, REQUEST_TYPE_INSERT, message);
       }
       handler.sendInsertData(row);

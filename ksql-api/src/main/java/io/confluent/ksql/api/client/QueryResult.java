@@ -22,7 +22,6 @@ public interface QueryResult extends Publisher<Row> {
 
   int queryID();
 
-  // Blocking API
   Row poll();
 
   Row poll(long timeoutMs);
@@ -30,6 +29,5 @@ public interface QueryResult extends Publisher<Row> {
   void setConsumer(Consumer<Row> consumer);
 
   void close();
-
 
 }

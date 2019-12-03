@@ -67,8 +67,6 @@ public class ServerInsertAction extends InsertAction {
 
     ServerInserter(int channelID, String target) {
 
-      ServiceContext serviceContext = ksqlEngine.getServiceContext();
-
       dataSource = ksqlEngine
           .getMetaStore()
           .getSource(SourceName.of(target));
@@ -92,6 +90,8 @@ public class ServerInsertAction extends InsertAction {
       );
 
       KeySerdeFactory keySerdeFactory = new GenericKeySerDe();
+
+      ServiceContext serviceContext = ksqlEngine.getServiceContext();
 
       keySerializer = keySerdeFactory.create(
           dataSource.getKsqlTopic().getKeyFormat().getFormatInfo(),

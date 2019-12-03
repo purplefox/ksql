@@ -23,7 +23,7 @@ public interface KsqlDBClient {
 
   CompletableFuture<KsqlDBConnection> connectWebsocket(String host, int port);
 
-  CompletableFuture<KsqlDBConnection> connectTCP(String host, int port);
+  CompletableFuture<KsqlDBConnection> connectTcp(String host, int port);
 
   static KsqlDBClient client() {
     return new DefaultKsqlClient();
