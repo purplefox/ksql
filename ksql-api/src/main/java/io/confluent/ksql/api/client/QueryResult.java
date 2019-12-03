@@ -16,17 +16,20 @@
 package io.confluent.ksql.api.client;
 
 import io.confluent.ksql.api.flow.Publisher;
-import java.util.List;
+import java.util.function.Consumer;
 
 public interface QueryResult extends Publisher<Row> {
 
   int queryID();
 
   // Blocking API
-  List<Row> poll(int num);
-
-  // Blocking API
   Row poll();
+
+  Row poll(long timeoutMs);
+
+  void setConsumer(Consumer<Row> consumer);
+
+  void close();
 
 
 }

@@ -27,7 +27,8 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.confluent.ksql.ServiceInfo;
-import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
+import io.confluent.ksql.api.ApiConnection;
+import io.confluent.ksql.api.ApiConnection.ChannelHandlerFactory;
 import io.confluent.ksql.api.server.ApiServer;
 import io.confluent.ksql.engine.KsqlEngine;
 import io.confluent.ksql.function.InternalFunctionRegistry;
@@ -43,6 +44,7 @@ import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
 import io.confluent.ksql.query.id.HybridQueryIdGenerator;
 import io.confluent.ksql.rest.entity.CommandId;
 import io.confluent.ksql.rest.entity.KsqlErrorMessage;
+import io.confluent.ksql.rest.server.apiactions.ServerInsertAction;
 import io.confluent.ksql.rest.server.apiactions.ServerQueryAction;
 import io.confluent.ksql.rest.server.computation.Command;
 import io.confluent.ksql.rest.server.computation.CommandQueue;
@@ -205,9 +207,12 @@ public final class KsqlRestApplication extends ExecutableApplication<KsqlRestCon
         requireNonNull(rocksDBConfigSetterHandler, "rocksDBConfigSetterHandler");
 
     Vertx vertx = Vertx.vertx();
-    Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
-    messageHandlerFactories.put("query", (conn, message) ->
-        new ServerQueryAction(conn, message, vertx, ksqlEngine, ksqlConfig, securityExtension)
+    Map<Short, ChannelHandlerFactory> messageHandlerFactories = new HashMap<>();
+    messageHandlerFactories.put(ApiConnection.REQUEST_TYPE_QUERY, (channelID, conn) ->
+        new ServerQueryAction(channelID, conn, vertx, ksqlEngine, ksqlConfig, securityExtension)
+    );
+    messageHandlerFactories.put(ApiConnection.REQUEST_TYPE_INSERT, (channelID, conn) ->
+        new ServerInsertAction(channelID, conn, ksqlEngine, ksqlConfig)
     );
     apiServer = new ApiServer(messageHandlerFactories, vertx);
   }

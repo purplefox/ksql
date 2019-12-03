@@ -17,11 +17,7 @@ package io.confluent.ksql.api;
 
 import io.confluent.ksql.api.protocol.ChannelHandler;
 import io.confluent.ksql.api.protocol.FrameHandler;
-import io.confluent.ksql.api.protocol.ProtocolHandler;
-import io.confluent.ksql.api.protocol.ProtocolHandler.AckFrame;
-import io.confluent.ksql.api.protocol.ProtocolHandler.CloseFrame;
-import io.confluent.ksql.api.protocol.ProtocolHandler.DataFrame;
-import io.confluent.ksql.api.protocol.ProtocolHandler.FlowFrame;
+import io.confluent.ksql.api.protocol.WireProtocol;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
@@ -30,36 +26,37 @@ import java.util.Map;
 
 public abstract class ApiConnection implements FrameHandler {
 
-  protected final ProtocolHandler protocolHandler;
+  private final WireProtocol protocolHandler;
   private final Map<Integer, ChannelHandler> channelHandlers = new HashMap<>();
 
-  public interface MessageHandlerFactory {
+  public static final short REQUEST_TYPE_QUERY = 1;
+  public static final short REQUEST_TYPE_INSERT = 2;
 
-    Runnable create(ApiConnection connection, JsonObject message);
+  public interface ChannelHandlerFactory {
+
+    ChannelHandler create(int channelID, ApiConnection connection);
   }
 
   public ApiConnection(
       Handler<Buffer> frameWriter
   ) {
-    this.protocolHandler = new ProtocolHandler(this, frameWriter);
+    this.protocolHandler = new WireProtocol(this, frameWriter);
   }
 
   public void handleBuffer(Buffer buffer) {
     protocolHandler.handleBuffer(buffer);
   }
 
-  protected abstract void runMessageHandler(Runnable messageHandler);
+  public void writeRequestFrame(int channelID, short requestType, JsonObject message) {
+    protocolHandler.writeRequestFrame(channelID, requestType, message);
+  }
 
-  public void writeMessage(JsonObject message) {
-    protocolHandler.writeMessageFrame(message);
+  public void writeMessageFrame(int channelID, JsonObject message) {
+    protocolHandler.writeMessageFrame(channelID, message);
   }
 
   public void writeDataFrame(int channelID, Buffer buffer) {
     protocolHandler.writeDataFrame(channelID, buffer);
-  }
-
-  public void writeAckFrame(int channelID) {
-    protocolHandler.writeAckFrame(channelID);
   }
 
   public void writeFlowFrame(int channelID, int bytes) {
@@ -74,10 +71,10 @@ public abstract class ApiConnection implements FrameHandler {
     channelHandlers.put(channelID, channelHandler);
   }
 
-  public void handleError(String errMessage) {
+  public void handleError(int channelID, String errMessage) {
     JsonObject response = new JsonObject().put("type", "error")
         .put("message", errMessage);
-    protocolHandler.writeMessageFrame(response);
+    protocolHandler.writeMessageFrame(channelID, response);
   }
 
   private ChannelHandler getChannelHandler(int channelID) {
@@ -88,20 +85,28 @@ public abstract class ApiConnection implements FrameHandler {
     return handler;
   }
 
-  public void handleDataFrame(DataFrame dataFrame) {
-    getChannelHandler(dataFrame.channelID).handleData(dataFrame.data);
+  @Override
+  public void handleMessageFrame(int channelID, Buffer buffer) {
+    getChannelHandler(channelID).handleMessage(buffer);
   }
 
-  public void handleAckFrame(AckFrame ackFrame) {
-    getChannelHandler(ackFrame.channelID).handleAck();
+  @Override
+  public void handleDataFrame(int channelID, Buffer buffer) {
+    getChannelHandler(channelID).handleData(buffer);
   }
 
-  public void handleFlowFrame(FlowFrame flowFrame) {
-    getChannelHandler(flowFrame.channelID).handleFlow(flowFrame.bytes);
+  @Override
+  public void handleFlowFrame(int channelID, int bytes) {
+    getChannelHandler(channelID).handleFlow(bytes);
   }
 
-  public void handleCloseFrame(CloseFrame closeFrame) {
-    getChannelHandler(closeFrame.channelID).handleClose();
+  @Override
+  public void handleCloseFrame(int channelID) {
+    getChannelHandler(channelID).handleClose();
   }
 
+  @Override
+  public void handleRequestFrame(int channelID, short frameType, Buffer buffer) {
+    throw new UnsupportedOperationException();
+  }
 }

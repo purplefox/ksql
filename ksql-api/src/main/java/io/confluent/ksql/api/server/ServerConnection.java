@@ -16,50 +16,31 @@
 package io.confluent.ksql.api.server;
 
 import io.confluent.ksql.api.ApiConnection;
-import io.confluent.ksql.api.protocol.ProtocolHandler.MessageFrame;
+import io.confluent.ksql.api.protocol.ChannelHandler;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 public class ServerConnection extends ApiConnection {
 
-  private final Executor actionExecutor;
-  private final Map<String, MessageHandlerFactory> messageHandlerFactories;
+  private final Map<Short, ChannelHandlerFactory> channelHandlerFactories;
 
   public ServerConnection(
       Handler<Buffer> frameWriter,
-      Executor actionExecutor,
-      Map<String, MessageHandlerFactory> messageHandlerFactories
+      Map<Short, ChannelHandlerFactory> channelHandlerFactories
   ) {
     super(frameWriter);
-    this.actionExecutor = actionExecutor;
-    this.messageHandlerFactories = messageHandlerFactories;
+    this.channelHandlerFactories = channelHandlerFactories;
   }
 
   @Override
-  public void handleMessageFrame(MessageFrame messageFrame) {
-    JsonObject message = messageFrame.payload;
-    String type = message.getString("type");
-    if (type == null) {
-      handleError("Message must contain a type field");
-      return;
-    }
-    MessageHandlerFactory factory = messageHandlerFactories.get(type);
+  public void handleRequestFrame(int channelID, short frameType, Buffer buffer) {
+    ChannelHandlerFactory factory = channelHandlerFactories.get(frameType);
     if (factory == null) {
-      throw new IllegalStateException("No factory for type " + type);
+      throw new IllegalStateException("No factory for type " + frameType);
     }
-    Runnable handler = factory.create(this, message);
-    runMessageHandler(handler);
-  }
-
-
-  @Override
-  protected void runMessageHandler(Runnable messageHandler) {
-    //actionExecutor.execute(messageHandler);
-    // for now just execute directly
-    messageHandler.run();
+    ChannelHandler handler = factory.create(channelID, this);
+    handler.handleMessage(buffer);
   }
 
 }

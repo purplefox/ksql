@@ -22,18 +22,29 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.WebSocket;
+import io.vertx.core.json.JsonObject;
 import java.util.concurrent.CompletableFuture;
 
 public class DefaultKsqlClient implements KsqlDBClient {
 
   private final Vertx vertx;
+  private final JsonObject properties;
 
   public DefaultKsqlClient() {
-    this.vertx = Vertx.vertx();
+    this(Vertx.vertx(), new JsonObject());
+  }
+
+  public DefaultKsqlClient(JsonObject properties) {
+    this(Vertx.vertx(), properties);
+  }
+
+  public DefaultKsqlClient(Vertx vertx, JsonObject properties) {
+    this.vertx = vertx;
+    this.properties = properties;
   }
 
   public DefaultKsqlClient(Vertx vertx) {
-    this.vertx = vertx;
+    this(vertx, new JsonObject());
   }
 
   @Override
@@ -67,4 +78,14 @@ public class DefaultKsqlClient implements KsqlDBClient {
     return Utils.convertFuture(promise.future());
   }
 
+  @Override
+  public CompletableFuture<KsqlDBConnection> connectTCP(String host, int port) {
+    // TODO
+    return null;
+  }
+
+  @Override
+  public void close() {
+
+  }
 }

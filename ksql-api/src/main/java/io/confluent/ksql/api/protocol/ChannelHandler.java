@@ -17,11 +17,11 @@ package io.confluent.ksql.api.protocol;
 
 import io.vertx.core.buffer.Buffer;
 
-public interface ChannelHandler extends Runnable {
+public interface ChannelHandler {
+
+  void handleMessage(Buffer message);
 
   void handleData(Buffer data);
-
-  void handleAck();
 
   void handleFlow(int bytes);
 

@@ -42,7 +42,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import java.security.Principal;
 import java.util.Iterator;
 import java.util.List;
@@ -59,10 +58,10 @@ public class ServerQueryAction extends QueryAction {
   private final UserServiceContextFactory serviceContextFactory;
   private final DefaultServiceContextFactory defaultServiceContextFactory;
 
-  public ServerQueryAction(ApiConnection apiConnection,
-      JsonObject message, Vertx vertx, KsqlEngine ksqlEngine, KsqlConfig ksqlConfig,
+  public ServerQueryAction(int channelID, ApiConnection apiConnection,
+      Vertx vertx, KsqlEngine ksqlEngine, KsqlConfig ksqlConfig,
       KsqlSecurityExtension ksqlSecurityExtension) {
-    super(apiConnection, message, vertx);
+    super(channelID, apiConnection, vertx);
     this.ksqlEngine = ksqlEngine;
     this.ksqlConfig = ksqlConfig;
     this.securityExtension = ksqlSecurityExtension;

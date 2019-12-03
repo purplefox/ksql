@@ -16,14 +16,13 @@
 package io.confluent.server;
 
 import io.confluent.ksql.api.ApiConnection;
-import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
+import io.confluent.ksql.api.ApiConnection.ChannelHandlerFactory;
 import io.confluent.ksql.api.server.ApiServer;
 import io.confluent.ksql.api.server.actions.InsertAction;
 import io.confluent.ksql.api.server.actions.Inserter;
 import io.confluent.ksql.api.server.actions.QueryAction;
 import io.confluent.ksql.api.server.actions.RowProvider;
 import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonObject;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -46,11 +45,14 @@ public class FakeKsqlDBServer {
 
   public FakeKsqlDBServer() {
     this.vertx = Vertx.vertx();
-    Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
+    Map<Short, ChannelHandlerFactory> messageHandlerFactories = new HashMap<>();
     FakeData fakeData = new FakeData();
     messageHandlerFactories
-        .put("query", (conn, msg) -> new FakeQueryAction(conn, msg, vertx, fakeData));
-    messageHandlerFactories.put("insert", (conn, msg) -> new FakeInsertAction(conn, msg, fakeData));
+        .put(ApiConnection.REQUEST_TYPE_QUERY,
+            (channelID, conn) -> new FakeQueryAction(channelID, conn, vertx, fakeData));
+    messageHandlerFactories
+        .put(ApiConnection.REQUEST_TYPE_INSERT,
+            (channelID, conn) -> new FakeInsertAction(channelID, conn, fakeData));
     this.apiServer = new ApiServer(messageHandlerFactories, vertx);
   }
 
@@ -66,9 +68,9 @@ public class FakeKsqlDBServer {
 
     private final FakeData fakeData;
 
-    public FakeQueryAction(ApiConnection apiConnection,
-        JsonObject message, Vertx vertx, FakeData fakeData) {
-      super(apiConnection, message, vertx);
+    public FakeQueryAction(int channelID, ApiConnection apiConnection,
+        Vertx vertx, FakeData fakeData) {
+      super(channelID, apiConnection, vertx);
       this.fakeData = fakeData;
     }
 
@@ -82,8 +84,8 @@ public class FakeKsqlDBServer {
 
     private final FakeData fakeData;
 
-    FakeInsertAction(ApiConnection apiConnection, JsonObject message, FakeData fakeData) {
-      super(apiConnection, message);
+    FakeInsertAction(int channelID, ApiConnection apiConnection, FakeData fakeData) {
+      super(channelID, apiConnection);
       this.fakeData = fakeData;
     }
 

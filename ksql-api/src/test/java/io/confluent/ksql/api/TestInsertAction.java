@@ -17,14 +17,13 @@ package io.confluent.ksql.api;
 
 import io.confluent.ksql.api.server.actions.InsertAction;
 import io.confluent.ksql.api.server.actions.Inserter;
-import io.vertx.core.json.JsonObject;
 
 public class TestInsertAction extends InsertAction {
 
   private final Inserter inserter;
 
-  public TestInsertAction(ApiConnection apiConnection, JsonObject message, Inserter inserter) {
-    super(apiConnection, message);
+  public TestInsertAction(int channelID, ApiConnection apiConnection, Inserter inserter) {
+    super(channelID, apiConnection);
     this.inserter = inserter;
   }
 

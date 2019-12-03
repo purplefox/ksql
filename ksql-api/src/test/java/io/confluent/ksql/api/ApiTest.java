@@ -18,7 +18,7 @@ package io.confluent.ksql.api;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
+import io.confluent.ksql.api.ApiConnection.ChannelHandlerFactory;
 import io.confluent.ksql.api.client.KsqlDBClient;
 import io.confluent.ksql.api.client.KsqlDBConnection;
 import io.confluent.ksql.api.client.QueryResult;
@@ -52,13 +52,15 @@ public class ApiTest {
 
     vertx = Vertx.vertx();
 
-    Map<String, MessageHandlerFactory> messageHandlerFactories = new HashMap<>();
-    messageHandlerFactories
-        .put("query", (conn, msg) -> new TestQueryAction(conn, msg, vertx, testRowProvider));
-    messageHandlerFactories
-        .put("insert", (conn, msg) -> new TestInsertAction(conn, msg, testInserter));
+    Map<Short, ChannelHandlerFactory> channelHandlerFactories = new HashMap<>();
+    channelHandlerFactories
+        .put(ApiConnection.REQUEST_TYPE_QUERY,
+            (channelID, conn) -> new TestQueryAction(channelID, conn, vertx, testRowProvider));
+    channelHandlerFactories
+        .put(ApiConnection.REQUEST_TYPE_INSERT,
+            (channelID, conn) -> new TestInsertAction(channelID, conn, testInserter));
 
-    server = new ApiServer(messageHandlerFactories, vertx);
+    server = new ApiServer(channelHandlerFactories, vertx);
     server.start().get();
     client = KsqlDBClient.client();
   }

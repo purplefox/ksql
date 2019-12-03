@@ -15,9 +15,23 @@
 
 package io.confluent.ksql.api.client;
 
+import io.vertx.core.json.JsonObject;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 public interface KsqlDBConnection {
 
   KsqlDBSession session();
+
+  CompletableFuture<Void> executeDDL(String command);
+
+  CompletableFuture<JsonObject> describe(String target);
+
+  CompletableFuture<List<JsonObject>> listStreams();
+
+  CompletableFuture<List<JsonObject>> listTopics();
+
+  // etc
 
   void close();
 

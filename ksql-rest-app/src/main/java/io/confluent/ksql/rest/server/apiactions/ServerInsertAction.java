@@ -45,9 +45,9 @@ public class ServerInsertAction extends InsertAction {
   private final KsqlEngine ksqlEngine;
   private final KsqlConfig ksqlConfig;
 
-  public ServerInsertAction(ApiConnection apiConnection,
-      JsonObject message, KsqlEngine ksqlEngine, KsqlConfig ksqlConfig) {
-    super(apiConnection, message);
+  public ServerInsertAction(int channelID, ApiConnection apiConnection,
+      KsqlEngine ksqlEngine, KsqlConfig ksqlConfig) {
+    super(channelID, apiConnection);
     this.ksqlEngine = ksqlEngine;
     this.ksqlConfig = ksqlConfig;
   }
@@ -74,13 +74,13 @@ public class ServerInsertAction extends InsertAction {
           .getSource(SourceName.of(target));
 
       if (dataSource == null) {
-        apiConnection.handleError("Cannot insert values into an unknown stream/table: "
+        apiConnection.handleError(channelID, "Cannot insert values into an unknown stream/table: "
             + target);
         return;
       }
 
       if (dataSource.getKsqlTopic().getKeyFormat().isWindowed()) {
-        apiConnection.handleError("Cannot insert values into windowed stream/table!");
+        apiConnection.handleError(channelID, "Cannot insert values into windowed stream/table!");
         return;
       }
 

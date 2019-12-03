@@ -15,7 +15,7 @@
 
 package io.confluent.ksql.api.server;
 
-import io.confluent.ksql.api.ApiConnection.MessageHandlerFactory;
+import io.confluent.ksql.api.ApiConnection.ChannelHandlerFactory;
 import io.confluent.ksql.api.impl.Utils;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -32,13 +32,13 @@ public class ApiServer {
 
   private ExecutorService executorService;
 
-  private final Map<String, MessageHandlerFactory> messageHandlerFactories;
+  private final Map<Short, ChannelHandlerFactory> channelHandlerFactories;
   private final Vertx vertx;
   private final AtomicReference<HttpServer> httpServer = new AtomicReference<>();
 
-  public ApiServer(Map<String, MessageHandlerFactory> messageHandlerFactories,
+  public ApiServer(Map<Short, ChannelHandlerFactory> channelHandlerFactories,
       Vertx vertx) {
-    this.messageHandlerFactories = messageHandlerFactories;
+    this.channelHandlerFactories = channelHandlerFactories;
     this.vertx = vertx;
   }
 
@@ -74,7 +74,7 @@ public class ApiServer {
     ServerConnection conn = new ServerConnection(buff -> {
       serverWebSocket.write(buff);
       System.out.println("Wrote buffer from server " + buff);
-    }, executorService, messageHandlerFactories);
+    }, channelHandlerFactories);
     serverWebSocket.handler(buff -> {
       try {
         conn.handleBuffer(buff);

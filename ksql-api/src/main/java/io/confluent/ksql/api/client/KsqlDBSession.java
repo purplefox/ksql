@@ -33,5 +33,4 @@ public interface KsqlDBSession {
 
   // TODO transactions
 
-
 }

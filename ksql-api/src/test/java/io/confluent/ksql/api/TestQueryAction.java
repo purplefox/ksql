@@ -18,15 +18,14 @@ package io.confluent.ksql.api;
 import io.confluent.ksql.api.server.actions.QueryAction;
 import io.confluent.ksql.api.server.actions.RowProvider;
 import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonObject;
 
 public class TestQueryAction extends QueryAction {
 
   private final RowProvider rowProvider;
 
-  public TestQueryAction(ApiConnection apiConnection, JsonObject message,
+  public TestQueryAction(int channelID, ApiConnection apiConnection,
       Vertx vertx, RowProvider rowProvider) {
-    super(apiConnection, message, vertx);
+    super(channelID, apiConnection, vertx);
     this.rowProvider = rowProvider;
   }
 

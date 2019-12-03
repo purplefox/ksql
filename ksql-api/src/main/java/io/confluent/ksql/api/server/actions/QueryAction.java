@@ -24,32 +24,27 @@ import io.vertx.core.json.JsonObject;
 public abstract class QueryAction implements ChannelHandler {
 
   private final ApiConnection apiConnection;
-  private final JsonObject message;
   private final Vertx vertx;
-  private int channelID;
+  private final int channelID;
   private int bytes;
   private Buffer holding;
   private RowProvider rowProvider;
   private boolean closed;
 
-  public QueryAction(ApiConnection apiConnection, JsonObject message, Vertx vertx) {
+  public QueryAction(int channelID, ApiConnection apiConnection, Vertx vertx) {
+    this.channelID = channelID;
     this.apiConnection = apiConnection;
-    this.message = message;
     this.vertx = vertx;
   }
 
   @Override
-  public synchronized void run() {
+  public void handleMessage(Buffer buffer) {
 
-    Integer channelID = message.getInteger("channel-id");
-    if (channelID == null) {
-      apiConnection.handleError("Message must contain a channel-id field");
-      return;
-    }
-    this.channelID = channelID;
+    JsonObject message = new JsonObject(buffer);
+
     String queryString = message.getString("query");
     if (queryString == null) {
-      apiConnection.handleError("Message must contain a query field");
+      apiConnection.handleError(channelID, "Message must contain a query field");
     }
 
     this.rowProvider = createRowProvider(queryString);
@@ -64,7 +59,7 @@ public abstract class QueryAction implements ChannelHandler {
         .put("cols", rowProvider.colNames())
         .put("col-types", rowProvider.colTypes());
 
-    apiConnection.writeMessage(response);
+    apiConnection.writeMessageFrame(channelID, response);
 
     /*
     TODO this is a hack!
@@ -85,11 +80,6 @@ public abstract class QueryAction implements ChannelHandler {
   }
 
   @Override
-  public void handleAck() {
-
-  }
-
-  @Override
   public synchronized void handleFlow(int bytes) {
     this.bytes += bytes;
     checkDeliver();
@@ -103,7 +93,7 @@ public abstract class QueryAction implements ChannelHandler {
   protected abstract RowProvider createRowProvider(String queryString);
 
   protected void handleError(String errMsg) {
-    apiConnection.handleError(errMsg);
+    apiConnection.handleError(channelID, errMsg);
   }
 
   private synchronized void setDeliverTimer() {

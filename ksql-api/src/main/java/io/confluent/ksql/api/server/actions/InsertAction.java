@@ -22,51 +22,21 @@ import io.vertx.core.json.JsonObject;
 
 public abstract class InsertAction implements ChannelHandler {
 
+  private final int channelID;
   protected final ApiConnection apiConnection;
-  protected final JsonObject message;
-  private int channelID;
   private Inserter inserter;
 
-  public InsertAction(ApiConnection apiConnection, JsonObject message) {
+  public InsertAction(final int channelID, ApiConnection apiConnection) {
     this.apiConnection = apiConnection;
-    this.message = message;
-  }
-
-  @Override
-  public void handleData(Buffer data) {
-    System.out.println("Handling data in insert action on server");
-    JsonObject row = new JsonObject(data);
-    inserter.insertRow(row);
-    System.out.println("Inserted row in inserter");
-    apiConnection.writeAckFrame(channelID);
-  }
-
-  @Override
-  public void handleAck() {
-
-  }
-
-  @Override
-  public void handleFlow(int bytes) {
-
-  }
-
-  @Override
-  public void handleClose() {
-
-  }
-
-  @Override
-  public void run() {
-    Integer channelID = message.getInteger("channel-id");
-    if (channelID == null) {
-      apiConnection.handleError("Message must contain a channel-id field");
-      return;
-    }
     this.channelID = channelID;
+  }
+
+  @Override
+  public void handleMessage(Buffer buffer) {
+    JsonObject message = new JsonObject(buffer);
     String target = message.getString("target");
     if (target == null) {
-      apiConnection.handleError("Message must contain a target field");
+      apiConnection.handleError(channelID, "Message must contain a target field");
     }
 
     JsonObject response = new JsonObject()
@@ -78,8 +48,23 @@ public abstract class InsertAction implements ChannelHandler {
 
     apiConnection.registerChannelHandler(channelID, this);
 
-    apiConnection.writeMessage(response);
+    apiConnection.writeMessageFrame(channelID, response);
+  }
 
+  @Override
+  public void handleData(Buffer data) {
+    System.out.println("Handling data in insert action on server");
+    JsonObject row = new JsonObject(data);
+    inserter.insertRow(row);
+    System.out.println("Inserted row in inserter");
+  }
+
+  @Override
+  public void handleFlow(int bytes) {
+  }
+
+  @Override
+  public void handleClose() {
   }
 
   protected abstract Inserter createInserter(Integer channelID, String target);
