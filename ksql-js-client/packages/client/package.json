@@ -1,0 +1,19 @@
+{
+  "name": "@ksqldb/client",
+  "version": "0.0.0",
+  "module": "./index.js",
+  "scripts": {
+    "build": "tsc --declaration",
+    "test": "TS_NODE_PROJECT=test/tsconfig.json mocha"
+  },
+  "devDependencies": {
+    "@types/mocha": "^5.2.6",
+    "@types/node": "^12.12.11",
+    "mocha": "^6.2.2",
+    "ts-node": "^8.5.2",
+    "typescript": "^3.7.3"
+  },
+  "dependencies": {
+    "@thi.ng/bitstream": "^1.1.5"
+  }
+}
