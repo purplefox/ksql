@@ -3,16 +3,15 @@ import * as assert from 'assert';
 import {
     MAGIC_NUMBER,
     VERSION,
-    FrameType,
-    encodeMessageFrame,
-    encodeDataFrame,
-    encodeFlowFrame,
-    encodeCloseFrame,
-    encodeRequestFrame,
+    MessageFrame,
+    DataFrame,
+    FlowFrame,
+    CloseFrame,
+    RequestFrame,
     decodeBuffer,
 } from '../src/protocol';
 
-import { FrameHandler, RequestType } from '../src/api';
+import { RequestType, FrameType } from '../src/api';
 
 const assertHeaders = (bs: Uint8Array, channelId: number, frameType: FrameType) => {
     const frameBuf = Buffer.from(bs);
@@ -30,8 +29,8 @@ describe('encoding', () => {
 
     describe('messageFrame', () => {
         const channelId = 42;
-        const payload = [5, 'Book', 9.99];
-        const frame = encodeMessageFrame(channelId, payload);
+        const message = [5, 'Book', 9.99];
+        const frame = MessageFrame.encode({ channelId, message });
 
         it('has headers', () => {
             assertHeaders(frame, channelId, FrameType.MSG);
@@ -44,7 +43,7 @@ describe('encoding', () => {
         });
 
         it('payload bytes are utf8-encoded json', () => {
-            const ex = Buffer.from(JSON.stringify(payload));
+            const ex = Buffer.from(JSON.stringify(message));
             assert.deepEqual(
                 [...ex.values()],
                 [...elideHeaders(frame).values()]
@@ -55,7 +54,7 @@ describe('encoding', () => {
     describe('dataFrame', () => {
         const channelId = 1;
         const payload = Buffer.from('ksqlDB');
-        const frame = encodeDataFrame(channelId, payload);
+        const frame = DataFrame.encode({ channelId, payload });
 
         it('has headers', () => {
             assertHeaders(frame, channelId, FrameType.DAT);
@@ -71,7 +70,7 @@ describe('encoding', () => {
 
     describe('flowFrame', () => {
         const channelId = 1;
-        const frame = encodeFlowFrame(channelId, 0xeeeeee);
+        const frame = FlowFrame.encode({ channelId, val: 0xeeeeee });
 
         it('has headers', () => {
             assertHeaders(frame, channelId, FrameType.FLO);
@@ -85,7 +84,7 @@ describe('encoding', () => {
 
     describe('closeFrame', () => {
         const channelId = 1;
-        const frame = encodeCloseFrame(channelId);
+        const frame = CloseFrame.encode({ channelId });
 
         it('has headers', () => {
             assertHeaders(frame, channelId, FrameType.CLS);
@@ -94,8 +93,8 @@ describe('encoding', () => {
 
     describe('requestFrame', () => {
         const channelId = 0;
-        const payload = { diaphonous: { damask: [1] } };
-        const frame = encodeRequestFrame(channelId, RequestType.QUERY, payload);
+        const message = { diaphonous: { damask: [1] } };
+        const frame = RequestFrame.encode({ channelId, requestType: RequestType.QUERY, message });
 
         it('has headers', () => {
             assertHeaders(frame, channelId, FrameType.REQ);
@@ -107,7 +106,7 @@ describe('encoding', () => {
         })
 
         it('payload bytes are utf8-encoded json', () => {
-            const ex = Buffer.from(JSON.stringify(payload));
+            const ex = Buffer.from(JSON.stringify(message));
             assert.deepEqual(
                 [...ex.values()],
                 [...elideHeaders(frame).values()].slice(2) // skip request type
@@ -119,56 +118,36 @@ describe('encoding', () => {
 
 describe('decoding', () => {
 
-    const noopHandler: FrameHandler = {
-        handleMessageFrame: (channelId: number, buffer: Uint8Array) => { },
-        handleDataFrame: (channelId: number, buffer: Uint8Array) => { },
-        handleFlowFrame: (channelId: number, bytes: number) => { },
-        handleCloseFrame: (channelId: number) => { },
-        handleRequestFrame: (channelId: number, requestType: RequestType, buffer: Uint8Array) => { },
-    };
-
-    it('handles Message frames', (handleMessageFrame) => {
-        const handler = {
-            ...noopHandler,
-            handleMessageFrame,
-        };
-
-        decodeBuffer(handler, encodeMessageFrame(0, {}));
+    it('handles Message frames', () => {
+        const message = { foo: 1 }
+        const ret = decodeBuffer(MessageFrame.encode({ channelId: 0, message }));
+        assert.equal(ret.channelId, 0);
+        assert.deepStrictEqual(ret.revive(), { message });
     });
 
-    it('handles Data frames', (handleDataFrame) => {
-        const handler = {
-            ...noopHandler,
-            handleDataFrame,
-        };
-
-        decodeBuffer(handler, encodeDataFrame(0, Buffer.alloc(1)));
+    it('handles Data frames', () => {
+        const payload = Buffer.alloc(1);
+        const ret = decodeBuffer(DataFrame.encode({ channelId: 0, payload }));
+        assert.equal(ret.channelId, 0);
+        assert.deepStrictEqual(ret.revive(), { payload });
     });
 
-    it('handles Flow frames', (handleFlowFrame) => {
-        const handler = {
-            ...noopHandler,
-            handleFlowFrame,
-        };
-
-        decodeBuffer(handler, encodeFlowFrame(0, 99));
+    it('handles Flow frames', () => {
+        const val = 99;
+        const ret = decodeBuffer(FlowFrame.encode({ channelId: 0, val }));
+        assert.equal(ret.channelId, 0);
+        assert.deepStrictEqual(ret.revive(), { val });
     });
 
-    it('handles Close frames', (handleCloseFrame) => {
-        const handler = {
-            ...noopHandler,
-            handleCloseFrame,
-        };
-
-        decodeBuffer(handler, encodeCloseFrame(0));
+    it('handles Close frames', () => {
+        const ret = decodeBuffer(CloseFrame.encode({ channelId: 0 }));
+        assert.equal(ret.channelId, 0);
     });
 
-    it('handles Request frames', (handleRequestFrame) => {
-        const handler = {
-            ...noopHandler,
-            handleRequestFrame,
-        };
-
-        decodeBuffer(handler, encodeRequestFrame(0, RequestType.INSERT, {}));
+    it('handles Request frames', () => {
+        const requestType = RequestType.QUERY;
+        const message = { foo: false };
+        const ret = decodeBuffer(RequestFrame.encode({ channelId: 0, requestType, message }));
+        assert.deepStrictEqual(ret.revive(), { requestType, message });
     });
-})
+});

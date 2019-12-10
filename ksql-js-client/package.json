@@ -4,7 +4,11 @@
     "build": "npm install && lerna bootstrap && lerna run build --sort"
   },
   "devDependencies": {
+    "@types/ws": "^6.0.4",
     "lerna": "^3.19.0",
     "typescript": "^3.7.3"
+  },
+  "dependencies": {
+    "ws": "^7.2.0"
   }
 }

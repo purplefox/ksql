@@ -14,6 +14,8 @@
     "typescript": "^3.7.3"
   },
   "dependencies": {
-    "@thi.ng/bitstream": "^1.1.5"
+    "@thi.ng/bitstream": "^1.1.5",
+    "@thi.ng/rstream": "^3.0.0",
+    "@thi.ng/transducers": "^6.1.0"
   }
 }
