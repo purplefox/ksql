@@ -162,6 +162,6 @@ export const decodeBuffer = <T>(buffer: Uint8Array): Frame<any> => {
             return new RequestFrame(channelId, requestType, buffer.subarray(18));
 
         default:
-            throw new Error(`Unhandled frame  ${FrameType.MSG}`);
+            throw new Error(`Unhandled frame ${frameType}`);
     }
 };
