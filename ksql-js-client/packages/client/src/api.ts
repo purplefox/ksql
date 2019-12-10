@@ -29,6 +29,7 @@ export interface Row {
 
 export interface QueryResult extends AsyncIterable<Row> {
     //collect(): Promise<Row[]>;
+    closed: boolean;
 }
 
 export interface KsqlDBConnection {

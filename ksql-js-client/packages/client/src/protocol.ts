@@ -121,7 +121,7 @@ export class RequestFrame implements Frame<RequestProps> {
     }
 }
 
-export const decodeBuffer = <T>(buffer: Uint8Array): Frame<any> => {
+export const decodeBuffer = (buffer: Uint8Array): Frame<any> => {
     if (buffer.length < 16) {
         throw new Error('Not enough data');
     }

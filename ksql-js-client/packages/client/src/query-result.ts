@@ -9,6 +9,7 @@ import {
     MessageFrame,
     DataFrame,
     FlowFrame,
+    CloseFrame,
 } from './protocol';
 
 import {
@@ -50,6 +51,8 @@ const createRow = (header: QueryResultHeader, data: DataFrame) => {
 class QueryResultImpl implements QueryResult {
     queryId: number
     promiseStream: Stream<[Function, Function]> = stream<[Function, Function]>()
+    fulfilledStream: Subscription<any, any>
+    closed: boolean = false
 
     constructor(
         private channelId: number,
@@ -64,29 +67,64 @@ class QueryResultImpl implements QueryResult {
             filter((x) => x instanceof DataFrame)
         );
 
-        const fulfilledStream = sync({
+        this.fulfilledStream = sync({
             src: { promise: this.promiseStream, data: dataStream },
             reset: true,
             all: true,
+            backPressure: 1000,
         }).subscribe({
             next: ({ promise, data }: { promise: [Function, Function], data: DataFrame }) => {
                 const [resolve, reject] = promise;
-                const row = createRow(header, data)
-                writeOutput(FlowFrame.encode({ channelId, val: data.bytes.length }))
-                resolve(row);
+                try {
+                    const row = createRow(header, data)
+                    writeOutput(FlowFrame.encode({ channelId, val: data.bytes.length }))
+                    resolve({ value: row, done: false });
+                } catch (err) {
+                    reject(err);
+                }
             }
+        });
+
+        inputChannel.subscribe({
+            next: (_) => setTimeout(() => this.close()), // defer parent stream close until next tick
+        }, filter((x) => x instanceof CloseFrame), {
+            closeIn: CloseMode.FIRST
         });
     }
 
     [Symbol.asyncIterator](): AsyncIterator<Row> {
         return {
             next: () => {
+                if (this.closed) {
+                    return Promise.resolve({ value: undefined, done: true });
+                }
+
                 return new Promise((resolve, reject) => {
                     this.promiseStream.next([resolve, reject]);
                 });
-            }
+            },
 
+            return: () => {
+                this.close();
+                return Promise.resolve({ value: undefined, done: true });
+            }
         }
+    }
+
+    close() {
+        if (this.closed) {
+            return;
+        }
+
+        this.closed = true;
+
+        // flush pending
+        this.promiseStream.subscribe({
+            next: ([resolve]) => resolve({ value: undefined, done: true })
+        });
+
+        this.inputChannel.done();
+        this.promiseStream.done();
     }
 }
 
@@ -95,7 +133,7 @@ export const createPendingQueryResult = (
     inputChannel: Subscription<Frame<any>, Frame<any>>,
     writeOutput: OutputWriter
 ): Promise<QueryResult> => new Promise((resolve, reject) => {
-    // await the RequestFrame response
+    // await the RequestFrame response    
     // TODO: reject after timeout
     inputChannel.subscribe({
         next: (messageFrame: MessageFrame) => {
