@@ -40,7 +40,7 @@ export interface KsqlDBConnection {
 
     streamQuery(query: string, pull?: boolean): Promise<QueryResult>;
     executeQuery(query: string): Promise<Row[]>;
-    //insertInto(target: string, row: object): Promise<void>;
+    insertInto(target: string, row: object): Promise<void>;
 }
 
 export interface KsqlDBClient {
