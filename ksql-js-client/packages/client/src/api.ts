@@ -28,7 +28,7 @@ export interface Row {
 }
 
 export interface QueryResult extends AsyncIterable<Row> {
-    //collect(): Promise<Row[]>;
+    gather(): Promise<Row[]>;
     closed: boolean;
 }
 

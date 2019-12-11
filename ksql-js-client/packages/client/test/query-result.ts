@@ -147,5 +147,28 @@ describe('QueryResult', () => {
         src.next(dataFrames[1]);
     });
 
+    it('gathers rows', (done) => {
+        const rowValues = [['foo', 'bar'], ['baz', 'quux']];
+        const dataFrames = rowValues.map((payload) => dataFrame(0, payload));
+        const src = stream<Frame<any>>();
+
+        createPendingQueryResult(0, src, (_) => { })
+            .then(async (query) => {
+                try {
+                    const rows = await query.gather();
+                    assert.deepStrictEqual(rows.map((r) => r.values), rowValues);
+                    done();
+                } catch (err) {
+                    done(err);
+                }
+
+
+            }, done);
+
+        src.next(messageFrame());
+        src.next(dataFrames[0]);
+        src.next(dataFrames[1]);
+        src.next(new CloseFrame(0));
+    });
 
 });

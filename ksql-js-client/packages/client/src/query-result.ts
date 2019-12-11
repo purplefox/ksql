@@ -111,6 +111,14 @@ class QueryResultImpl implements QueryResult {
         }
     }
 
+    async gather() {
+        const acc = [];
+        for await (const row of this) {
+            acc.push(row);
+        }
+        return acc;
+    }
+
     close() {
         if (this.closed) {
             return;
