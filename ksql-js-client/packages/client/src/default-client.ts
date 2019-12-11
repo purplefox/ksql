@@ -66,6 +66,11 @@ export class Connection implements KsqlDBConnection {
         return pendingQueryResult;
     }
 
+    async executeQuery(query: string) {
+        const queryResult = await this.streamQuery(query, true);
+        return queryResult.gather();
+    }
+
 }
 
 export class DefaultKsqlDBClient implements KsqlDBClient {

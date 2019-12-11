@@ -39,7 +39,7 @@ export interface KsqlDBConnection {
     // listTopics(): Promise<object[]>;
 
     streamQuery(query: string, pull?: boolean): Promise<QueryResult>;
-    //executeQuery(query: string): Promise<Row[]>;
+    executeQuery(query: string): Promise<Row[]>;
     //insertInto(target: string, row: object): Promise<void>;
 }
 
