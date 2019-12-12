@@ -6,7 +6,7 @@ interface WebSocketLike extends Partial<WebSocket> {
 }
 
 let WebSocketImpl: WebSocketLike;
-if (typeof process !== 'undefined') {
+if (typeof global.process !== 'undefined') {
     WebSocketImpl = require('ws');
 } else {
     WebSocketImpl = WebSocket;

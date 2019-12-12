@@ -20,9 +20,14 @@ import {
 
 describe('QueryResult', () => {
 
+    const cols = ['k', 'v'];
+
+    const toRow = (values) =>
+        cols.reduce((acc, k, i) => (acc[k] = values[i], acc), {});
+
     const messageFrame = (channelId = 0) => new MessageFrame(channelId, Buffer.from(JSON.stringify({
         'query-id': 0,
-        'cols': ['k', 'v'],
+        cols,
         'col-types': ['STRING', 'STRING']
     })));
 
@@ -47,7 +52,7 @@ describe('QueryResult', () => {
                 try {
                     let i = 0;
                     for await (const row of query) {
-                        assert.deepStrictEqual(row.values, rowValues[i]);
+                        assert.deepStrictEqual(row, toRow(rowValues[i]));
                         if (++i == rowValues.length) {
                             done();
                         }
@@ -156,7 +161,7 @@ describe('QueryResult', () => {
             .then(async (query) => {
                 try {
                     const rows = await query.gather();
-                    assert.deepStrictEqual(rows.map((r) => r.values), rowValues);
+                    assert.deepStrictEqual(rows, rowValues.map(toRow));
                     done();
                 } catch (err) {
                     done(err);

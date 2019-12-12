@@ -21,11 +21,13 @@ export interface Frame<T> {
     revive(): T;
 }
 
-export interface Row {
+export interface RawRow {
     columns: string[];
     columnTypes: string[];
     values: any[];
 }
+
+export type Row = RawRow | Record<string, any>;
 
 export interface QueryResult extends AsyncIterable<Row> {
     gather(): Promise<Row[]>;
@@ -38,8 +40,8 @@ export interface KsqlDBConnection {
     // listStreams(): Promise<object[]>;
     // listTopics(): Promise<object[]>;
 
-    streamQuery(query: string, pull?: boolean): Promise<QueryResult>;
-    executeQuery(query: string): Promise<Row[]>;
+    streamQuery(query: string, pull?: boolean, mapRow?: boolean): Promise<QueryResult>;
+    executeQuery(query: string, mapRow?: boolean): Promise<Row[]>;
     insertInto(target: string, row: object): Promise<void>;
 }
 

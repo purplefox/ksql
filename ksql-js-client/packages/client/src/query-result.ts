@@ -1,6 +1,7 @@
 import {
     Frame,
     Row,
+    RawRow,
     QueryResult,
     OutputWriter,
 } from './api';
@@ -40,13 +41,19 @@ const parseMessageFrame = (
             columnTypes: message['col-types']
         }
     };
-}
+};
 
-const createRow = (header: QueryResultHeader, data: DataFrame) => {
+const toRow = (header: QueryResultHeader, data: DataFrame): Record<string, any> => {
+    const { payload } = data.revive();
+    const values = JSON.parse(payload.toString());
+    return header.columns.reduce((acc, k, i) => (acc[k] = values[i], acc), {});
+};
+
+const toRawRow = (header: QueryResultHeader, data: DataFrame): RawRow => {
     const { payload } = data.revive();
     const values = JSON.parse(payload.toString());
     return { ...header, values };
-}
+};
 
 class QueryResultImpl implements QueryResult {
     queryId: number
@@ -59,6 +66,7 @@ class QueryResultImpl implements QueryResult {
         private inputChannel: Subscription<Frame<any>, Frame<any>>,
         private writeOutput: OutputWriter,
         messageFrame: MessageFrame,
+        mapRow: boolean = true,
     ) {
         const { queryId, header } = parseMessageFrame(messageFrame);
         this.queryId = queryId;
@@ -76,7 +84,7 @@ class QueryResultImpl implements QueryResult {
             next: ({ promise, data }: { promise: [Function, Function], data: DataFrame }) => {
                 const [resolve, reject] = promise;
                 try {
-                    const row = createRow(header, data)
+                    const row = mapRow ? toRow(header, data) : toRawRow(header, data);
                     writeOutput(FlowFrame.encode({ channelId, val: data.bytes.length }))
                     resolve({ value: row, done: false });
                 } catch (err) {
@@ -139,13 +147,14 @@ class QueryResultImpl implements QueryResult {
 export const createPendingQueryResult = (
     channelId: number,
     inputChannel: Subscription<Frame<any>, Frame<any>>,
-    writeOutput: OutputWriter
+    writeOutput: OutputWriter,
+    mapRow?: boolean
 ): Promise<QueryResult> => new Promise((resolve, reject) => {
     // await the RequestFrame response    
     // TODO: reject after timeout
     inputChannel.subscribe({
         next: (messageFrame: MessageFrame) => {
-            resolve(new QueryResultImpl(channelId, inputChannel, writeOutput, messageFrame))
+            resolve(new QueryResultImpl(channelId, inputChannel, writeOutput, messageFrame, mapRow))
         }
     }, filter((x) => x instanceof MessageFrame), {
         closeIn: CloseMode.FIRST

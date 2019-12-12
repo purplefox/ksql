@@ -12,7 +12,7 @@ import { createPendingQueryResult } from './query-result';
 import { createWebsocketConnection } from './websocket';
 
 
-export class InsertHandler {
+class InsertHandler {
     writeWindowSize = 1024 * 1024
     pendingInserts: [Buffer, Function][] = []
 
@@ -59,7 +59,7 @@ export class InsertHandler {
     }
 }
 
-export class Connection implements KsqlDBConnection {
+class Connection implements KsqlDBConnection {
     inputChannels: PubSub<Uint8Array, Frame<any>>
     nextChannelId: number = 0
     insertHandlerByTarget: Map<string, InsertHandler> = new Map
@@ -76,11 +76,11 @@ export class Connection implements KsqlDBConnection {
         this.inputStream.subscribe(this.inputChannels);
     }
 
-    streamQuery(query: string, pull?: boolean) {
+    streamQuery(query: string, pull?: boolean, mapRow?: boolean) {
         const channelId = this.nextChannelId++;
         const inputChannel: Subscription<Frame<any>, Frame<any>> = this.inputChannels.subscribeTopic(channelId);
 
-        const pendingQueryResult = createPendingQueryResult(channelId, inputChannel, this.writeOutput);
+        const pendingQueryResult = createPendingQueryResult(channelId, inputChannel, this.writeOutput, mapRow);
 
         const message = {
             type: 'query',
@@ -98,8 +98,8 @@ export class Connection implements KsqlDBConnection {
         return pendingQueryResult;
     }
 
-    async executeQuery(query: string) {
-        const queryResult = await this.streamQuery(query, true);
+    async executeQuery(query: string, mapRow?: boolean) {
+        const queryResult = await this.streamQuery(query, true, mapRow);
         return queryResult.gather();
     }
 
@@ -130,10 +130,15 @@ export class Connection implements KsqlDBConnection {
     }
 }
 
-export class DefaultKsqlDBClient implements KsqlDBClient {
+class DefaultKsqlDBClient implements KsqlDBClient {
 
     async connectWebsocket(endpoint: string): Promise<KsqlDBConnection> {
         const [inputStream, writeOutput] = await createWebsocketConnection(endpoint);
         return new Connection(inputStream, writeOutput);
     }
 }
+
+export const createKsqlDBConnection = (
+    endpoint: string
+): Promise<KsqlDBConnection> =>
+    (new DefaultKsqlDBClient).connectWebsocket(endpoint);
