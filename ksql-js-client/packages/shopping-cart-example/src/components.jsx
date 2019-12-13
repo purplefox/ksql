@@ -18,7 +18,7 @@ const usePullQuery = (db, query) => {
 }
 
 const usePushQuery = (db, query) => {
-  const [results, setResults] = useState({rows: [], error: null});
+  const [results, setResults] = useState({ rows: [], error: null });
 
   useEffect(() => {
     (async () => {
@@ -38,7 +38,7 @@ const usePushQuery = (db, query) => {
   return results;
 };
 
-export const Catalog = ({ db, userId, style }) => {
+export const Catalog = ({ db, userId }) => {
   const { rows, error } = usePullQuery(db, 'SELECT * FROM LINE_ITEM');
 
   const catalogItems = rows.map(({ item_id, name, price }) => {
@@ -59,7 +59,7 @@ export const Catalog = ({ db, userId, style }) => {
     </tr>;
   });
 
-  return <div style={style}>
+  return <>
     <h1>Catalog</h1>
     <table style={{cellMargin: 2}}>
       <thead style={{ fontWeight: 600 }}>
@@ -67,13 +67,13 @@ export const Catalog = ({ db, userId, style }) => {
       </thead>
       <tbody>{catalogItems}</tbody>
     </table>
-  </div>;
+  </>;
 }
 
-export const Basket = ({ db, userId, style }) => {
+export const Basket = ({ db, userId }) => {
   const baseQuery = `SELECT * FROM USER_BASKET WHERE USER_ID = ${userId}`;
   const { rows, error } = usePushQuery(db, `${baseQuery} EMIT CHANGES`);
-  const [orderResult, setOrderResult] = useState({status: null, error: null});
+  const [orderResult, setOrderResult] = useState({ status: null, error: null });
 
   const basketItems = rows.map(({ name, amount }, i) => <li key={i}>{name} ({amount})</li>);
   const total = rows.reduce((acc, { price }) => acc + price, 0);
@@ -96,7 +96,7 @@ export const Basket = ({ db, userId, style }) => {
     }
   };
 
-  return <div style={style}>
+  return <>
     <h1>Basket</h1>
     <button disabled={!!orderResult.status} onClick={placeOrder}>
       Place order {orderResult.status && `(${orderResult.status})`}
@@ -105,29 +105,29 @@ export const Basket = ({ db, userId, style }) => {
     <div style={{ borderTop: '1px solid black', textAlign: 'right' }}>
       ${total.toFixed(2)}
     </div>
-  </div>;
+  </>;
 }
 
-export const Orders = ({ db, style }) => {
+export const Orders = ({ db }) => {
   const { rows, error } = usePushQuery(db, `SELECT * FROM ORDER_EVENT EMIT CHANGES`);
 
   const orders = rows.map((x, i) => <pre key={i}>{JSON.stringify(x)}</pre>);
 
-  return <div style={style}>
+  return <>
     <h1>Orders</h1>
     <div style={{ overflowX: 'scroll' }}>
       {orders}
     </div>
-  </div>;
+  </>;
 }
 
-export const OrderReports = ({ db, style }) => {
+export const OrderReports = ({ db }) => {
   const { rows, error } = usePushQuery(db, `SELECT * FROM ORDER_REPORT EMIT CHANGES`);
 
   const orderReports = rows.map((x, i) => <pre key={i}>{JSON.stringify(x)}</pre>);
 
-  return <div style={style}>
+  return <>
     <h1>Order reports</h1>
     {orderReports}
-  </div>;
+  </>;
 }

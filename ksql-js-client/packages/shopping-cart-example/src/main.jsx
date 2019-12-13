@@ -35,17 +35,22 @@ const Main = ({ endpoint, userId }) => {
     </span>;
   }
 
-  const childProps = {
-    db,
-    userId,
-    style: { flex: 1, padding: '1em', borderLeft: '3px solid #eee' },
-  };
+  const childProps = { db, userId };
+  const childStyle = { flex: 1, padding: '1em', borderLeft: '3px solid #eee' };
 
   return <div style={{ display: 'flex', height: '100%' }}>
-    <Catalog {...childProps} />
-    <Basket {...childProps} />
-    <Orders {...childProps} style={{ ...childProps.style, maxWidth: '25%' }} />
-    <OrderReports {...childProps} />
+    <div style={childStyle}>
+      <Catalog {...childProps} />
+    </div>
+    <div style={childStyle}>
+      <Basket {...childProps} />
+    </div>
+    <div style={{ ...childStyle, maxWidth: '25%' }}>
+      <Orders {...childProps} />
+    </div>
+    <div style={childStyle}>
+      <OrderReports {...childProps} />
+    </div>
   </div>;
 };
 
