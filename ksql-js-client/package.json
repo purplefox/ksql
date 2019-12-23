@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "npm install && lerna bootstrap && lerna run build --sort",
+    "start-example": "cd ./packages/shopping-cart-example && npm run dev"
+  },
+  "devDependencies": {
+    "lerna": "^3.19.0",
+    "typescript": "^3.7.3"
+  }
+}
