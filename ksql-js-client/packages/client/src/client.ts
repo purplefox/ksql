@@ -104,7 +104,7 @@ class Connection implements KsqlDBConnection {
     }
 
     insertInto(target: string, row: object) {
-        let handler = this.insertHandlerByTarget.get('target');
+        let handler = this.insertHandlerByTarget.get(target);
 
         if (!handler) {
             const channelId = this.nextChannelId++;
