@@ -16,8 +16,8 @@
 package io.confluent.ksql.api.server;
 
 import io.confluent.ksql.GenericRow;
+import io.confluent.ksql.api.common.QueryResponseMetadata;
 import io.confluent.ksql.api.server.protocol.ErrorResponse;
-import io.confluent.ksql.api.server.protocol.QueryResponseMetadata;
 
 /**
  * Represents something that knows how to write out a query response

@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 import io.confluent.common.utils.IntegrationTest;
-import io.confluent.ksql.api.impl.VertxCompletableFuture;
+import io.confluent.ksql.api.common.VertxCompletableFuture;
 import io.confluent.ksql.api.server.ErrorCodes;
 import io.confluent.ksql.api.utils.InsertsResponse;
 import io.confluent.ksql.api.utils.QueryResponse;

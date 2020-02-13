@@ -15,6 +15,7 @@
 
 package io.confluent.ksql.api.server.protocol;
 
+import io.confluent.ksql.api.common.PojoCodec;
 import io.vertx.core.buffer.Buffer;
 
 /**

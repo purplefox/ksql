@@ -16,9 +16,9 @@
 package io.confluent.ksql.api.server;
 
 import io.confluent.ksql.GenericRow;
+import io.confluent.ksql.api.common.PojoCodec;
+import io.confluent.ksql.api.common.QueryResponseMetadata;
 import io.confluent.ksql.api.server.protocol.ErrorResponse;
-import io.confluent.ksql.api.server.protocol.PojoCodec;
-import io.confluent.ksql.api.server.protocol.QueryResponseMetadata;
 import io.vertx.core.http.HttpServerResponse;
 import java.util.Objects;
 

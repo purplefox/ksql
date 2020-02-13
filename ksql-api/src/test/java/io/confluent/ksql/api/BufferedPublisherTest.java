@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.fail;
 
-import io.confluent.ksql.api.server.BufferedPublisher;
+import io.confluent.ksql.api.common.BufferedPublisher;
 import io.confluent.ksql.api.utils.AsyncAssert;
 import io.confluent.ksql.api.utils.TestUtils;
 import java.util.concurrent.CountDownLatch;

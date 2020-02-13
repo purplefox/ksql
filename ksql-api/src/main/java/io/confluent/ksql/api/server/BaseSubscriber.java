@@ -15,7 +15,7 @@
 
 package io.confluent.ksql.api.server;
 
-import io.confluent.ksql.api.impl.Utils;
+import io.confluent.ksql.api.common.Utils;
 import io.vertx.core.Context;
 import java.util.Objects;
 import org.reactivestreams.Subscriber;

@@ -15,22 +15,27 @@
 
 package io.confluent.ksql.api.client.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.ksql.api.client.Client;
 import io.confluent.ksql.api.client.ClientOptions;
 import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
-import io.vertx.codegen.annotations.Nullable;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Handler;
+import io.confluent.ksql.api.common.QueryResponseMetadata;
+import io.confluent.ksql.api.common.Utils;
+import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientOptions;
+import io.vertx.core.http.HttpClientResponse;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.streams.WriteStream;
-import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.WebClientOptions;
-import io.vertx.ext.web.codec.BodyCodec;
+import io.vertx.core.json.jackson.DatabindCodec;
+import io.vertx.core.net.SocketAddress;
+import io.vertx.core.parsetools.RecordParser;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.reactivestreams.Publisher;
@@ -39,19 +44,25 @@ public class ClientImpl implements Client {
 
   private final ClientOptions clientOptions;
   private final Vertx vertx;
-  private final WebClient webClient;
+  private final HttpClient httpClient;
+  private final SocketAddress serverSocketAddress;
 
   public ClientImpl(final ClientOptions clientOptions) {
 
     this.clientOptions = clientOptions.copy();
     this.vertx = Vertx.vertx();
 
-    final WebClientOptions options = new WebClientOptions()
+    final HttpClientOptions options = new HttpClientOptions()
         .setSsl(clientOptions.isUseTls())
         .setUseAlpn(true)
-        .setProtocolVersion(HttpVersion.HTTP_2);
+        .setProtocolVersion(HttpVersion.HTTP_2)
+        .setDefaultHost(clientOptions.getHost())
+        .setDefaultPort(clientOptions.getPort());
 
-    this.webClient = WebClient.create(vertx, options);
+    this.httpClient = vertx.createHttpClient(options);
+
+    this.serverSocketAddress = io.vertx.core.net.SocketAddress
+        .inetSocketAddress(clientOptions.getPort(), clientOptions.getHost());
   }
 
 
@@ -60,54 +71,97 @@ public class ClientImpl implements Client {
 
     final JsonObject requestBody = new JsonObject().put("sql", sql).put("properties", properties);
 
-    webClient.post(clientOptions.getPort(), clientOptions.getHost(), "/query-stream")
-        .as(BodyCodec.pipe(writeStream))
-        .sendJsonObject(requestBody, ar -> {
-        });
+    final CompletableFuture<QueryResult> cf = new CompletableFuture<>();
 
-    return null;
+    httpClient.request(HttpMethod.POST,
+        serverSocketAddress, clientOptions.getPort(), clientOptions.getHost(),
+        "/query-stream",
+        response -> handleResponse(response, cf))
+        .exceptionHandler(this::handleRequestException)
+        .end(requestBody.toBuffer());
+
+    return cf;
   }
 
-  class ResponseStream implements WriteStream<Buffer> {
+  private void handleRequestException(final Throwable t) {
 
-    @Override
-    public WriteStream<Buffer> exceptionHandler(final Handler<Throwable> handler) {
-      return null;
+  }
+
+  private void handleResponse(final HttpClientResponse response,
+      final CompletableFuture<QueryResult> cf) {
+    final RecordParser recordParser = RecordParser.newDelimited("\n", response);
+    final ResponseHandler responseHandler = new ResponseHandler(Vertx.currentContext(),
+        recordParser, cf);
+    recordParser.handler(responseHandler::handleBodyBuffer);
+    recordParser.endHandler(responseHandler::handleBodyEnd);
+  }
+
+  private class ResponseHandler {
+
+    private final Context context;
+    private final RecordParser recordParser;
+    private final CompletableFuture<QueryResult> cf;
+    private boolean hasReadArguments;
+    private QueryResultImpl queryResult;
+    private boolean paused;
+
+    ResponseHandler(final Context context, final RecordParser recordParser,
+        final CompletableFuture<QueryResult> cf) {
+      this.context = context;
+      this.recordParser = recordParser;
+      this.cf = cf;
     }
 
-    @Override
-    public WriteStream<Buffer> write(final Buffer data) {
-      return null;
+    public void handleBodyBuffer(final Buffer buff) {
+      checkContext();
+      if (!hasReadArguments) {
+        handleArgs(buff);
+      } else if (queryResult != null) {
+        handleRow(buff);
+      }
     }
 
-    @Override
-    public WriteStream<Buffer> write(final Buffer data, final Handler<AsyncResult<Void>> handler) {
-      return null;
+    private void handleArgs(final Buffer buff) {
+      hasReadArguments = true;
+
+      final QueryResponseMetadata queryResponseMetadata;
+      final ObjectMapper objectMapper = DatabindCodec.mapper();
+      try {
+        queryResponseMetadata = objectMapper
+            .readValue(buff.getBytes(), QueryResponseMetadata.class);
+      } catch (Exception e) {
+        cf.completeExceptionally(e);
+        return;
+      }
+
+      this.queryResult = new QueryResultImpl(context, queryResponseMetadata.queryId,
+          Collections.unmodifiableList(queryResponseMetadata.columnNames),
+          Collections.unmodifiableList(queryResponseMetadata.columnTypes));
+      cf.complete(queryResult);
     }
 
-    @Override
-    public void end() {
-
+    private void handleRow(final Buffer buff) {
+      final JsonArray values = new JsonArray(buff);
+      final Row row = new RowImpl(queryResult.columnNames(), queryResult.columnTypes(), values);
+      final boolean full = queryResult.accept(row);
+      if (full && !paused) {
+        recordParser.pause();
+        queryResult.drainHandler(this::publisherReceptive);
+        paused = true;
+      }
     }
 
-    @Override
-    public void end(final Handler<AsyncResult<Void>> handler) {
-
+    private void publisherReceptive() {
+      paused = false;
+      recordParser.resume();
     }
 
-    @Override
-    public WriteStream<Buffer> setWriteQueueMaxSize(final int maxSize) {
-      return null;
+    public void handleBodyEnd(final Void v) {
+      checkContext();
     }
 
-    @Override
-    public boolean writeQueueFull() {
-      return false;
-    }
-
-    @Override
-    public WriteStream<Buffer> drainHandler(@Nullable final Handler<Void> handler) {
-      return null;
+    private void checkContext() {
+      Utils.checkContext(context);
     }
   }
 
@@ -128,6 +182,6 @@ public class ClientImpl implements Client {
 
   @Override
   public void close() {
-
+    httpClient.close();
   }
 }

@@ -13,7 +13,7 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.server.protocol;
+package io.confluent.ksql.api.common;
 
 /**
  * Handles errors during deserialization of JSON into POJOs using PojoCodec. The Jackson exceptions

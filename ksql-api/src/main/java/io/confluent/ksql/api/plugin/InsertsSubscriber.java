@@ -16,9 +16,9 @@
 package io.confluent.ksql.api.plugin;
 
 import io.confluent.ksql.GenericRow;
-import io.confluent.ksql.api.impl.Utils;
+import io.confluent.ksql.api.common.BufferedPublisher;
+import io.confluent.ksql.api.common.Utils;
 import io.confluent.ksql.api.server.BaseSubscriber;
-import io.confluent.ksql.api.server.BufferedPublisher;
 import io.confluent.ksql.api.server.InsertResult;
 import io.confluent.ksql.api.server.InsertsStreamSubscriber;
 import io.confluent.ksql.logging.processing.NoopProcessingLogContext;

@@ -15,9 +15,9 @@
 
 package io.confluent.ksql.api.server;
 
+import io.confluent.ksql.api.common.PojoCodec;
+import io.confluent.ksql.api.common.PojoDeserializerErrorHandler;
 import io.confluent.ksql.api.server.protocol.ErrorResponse;
-import io.confluent.ksql.api.server.protocol.PojoCodec;
-import io.confluent.ksql.api.server.protocol.PojoDeserializerErrorHandler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServerResponse;
 import java.util.Optional;

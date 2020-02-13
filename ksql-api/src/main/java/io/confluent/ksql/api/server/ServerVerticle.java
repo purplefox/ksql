@@ -15,7 +15,7 @@
 
 package io.confluent.ksql.api.server;
 
-import io.confluent.ksql.api.impl.Utils;
+import io.confluent.ksql.api.common.Utils;
 import io.confluent.ksql.api.spi.Endpoints;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;

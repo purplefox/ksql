@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 import io.confluent.ksql.GenericRow;
-import io.confluent.ksql.api.impl.VertxCompletableFuture;
+import io.confluent.ksql.api.common.VertxCompletableFuture;
 import io.confluent.ksql.api.server.ApiServerConfig;
 import io.confluent.ksql.api.server.PushQueryId;
 import io.confluent.ksql.api.server.Server;

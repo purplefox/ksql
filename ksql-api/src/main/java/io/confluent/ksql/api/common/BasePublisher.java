@@ -13,9 +13,8 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.ksql.api.server;
+package io.confluent.ksql.api.common;
 
-import io.confluent.ksql.api.impl.Utils;
 import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 import java.util.Objects;

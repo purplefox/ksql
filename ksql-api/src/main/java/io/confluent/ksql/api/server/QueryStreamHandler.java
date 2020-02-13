@@ -15,8 +15,8 @@
 
 package io.confluent.ksql.api.server;
 
-import io.confluent.ksql.api.impl.VertxCompletableFuture;
-import io.confluent.ksql.api.server.protocol.QueryResponseMetadata;
+import io.confluent.ksql.api.common.QueryResponseMetadata;
+import io.confluent.ksql.api.common.VertxCompletableFuture;
 import io.confluent.ksql.api.server.protocol.QueryStreamArgs;
 import io.confluent.ksql.api.spi.Endpoints;
 import io.confluent.ksql.api.spi.QueryPublisher;

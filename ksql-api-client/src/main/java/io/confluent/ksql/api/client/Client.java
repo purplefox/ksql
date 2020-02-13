@@ -24,7 +24,7 @@ import org.reactivestreams.Publisher;
 
 public interface Client {
 
-  CompletableFuture<QueryResult> streamQuery(String sql);
+  CompletableFuture<QueryResult> streamQuery(String sql, JsonObject properties);
 
   CompletableFuture<List<Row>> executeQuery(String sql);
 

@@ -16,7 +16,7 @@
 package io.confluent.ksql.api;
 
 import io.confluent.ksql.GenericRow;
-import io.confluent.ksql.api.server.BasePublisher;
+import io.confluent.ksql.api.common.BasePublisher;
 import io.confluent.ksql.api.spi.QueryPublisher;
 import io.confluent.ksql.api.utils.RowGenerator;
 import io.vertx.core.Context;

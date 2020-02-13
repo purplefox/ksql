@@ -16,12 +16,13 @@
 package io.confluent.ksql.api.client;
 
 import io.vertx.core.json.JsonArray;
+import java.util.List;
 
 public interface Row {
 
-  JsonArray columns();
+  List<String> columnNames();
 
-  JsonArray columnTypes();
+  List<String> columnTypes();
 
   JsonArray values();
 

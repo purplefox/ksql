@@ -16,7 +16,7 @@
 package io.confluent.ksql.api.plugin;
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.ksql.api.impl.Utils;
+import io.confluent.ksql.api.common.Utils;
 import io.confluent.ksql.api.server.InsertResult;
 import io.confluent.ksql.api.server.InsertsStreamSubscriber;
 import io.confluent.ksql.api.server.PushQueryHandler;

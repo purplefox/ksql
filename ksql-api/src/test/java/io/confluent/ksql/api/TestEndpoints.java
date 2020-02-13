@@ -15,7 +15,7 @@
 
 package io.confluent.ksql.api;
 
-import io.confluent.ksql.api.server.BufferedPublisher;
+import io.confluent.ksql.api.common.BufferedPublisher;
 import io.confluent.ksql.api.server.InsertResult;
 import io.confluent.ksql.api.server.InsertsStreamSubscriber;
 import io.confluent.ksql.api.spi.Endpoints;

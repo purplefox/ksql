@@ -18,7 +18,8 @@ package io.confluent.ksql.api.server;
 import static io.confluent.ksql.api.server.QueryStreamHandler.DELIMITED_CONTENT_TYPE;
 import static io.confluent.ksql.api.server.ServerUtils.deserialiseObject;
 
-import io.confluent.ksql.api.impl.VertxCompletableFuture;
+import io.confluent.ksql.api.common.BufferedPublisher;
+import io.confluent.ksql.api.common.VertxCompletableFuture;
 import io.confluent.ksql.api.server.protocol.InsertError;
 import io.confluent.ksql.api.server.protocol.InsertsStreamArgs;
 import io.confluent.ksql.api.spi.Endpoints;
