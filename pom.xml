@@ -63,6 +63,7 @@
         <module>ksql-functional-tests</module>
         <module>ksql-rocksdb-config-setter</module>
         <module>ksql-api</module>
+        <module>ksql-api-client</module>
         <module>ksql-docker</module>
     </modules>
 
@@ -227,6 +228,12 @@
             <dependency>
                 <groupId>io.confluent.ksql</groupId>
                 <artifactId>ksql-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.confluent.ksql</groupId>
+                <artifactId>ksql-api-client</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
