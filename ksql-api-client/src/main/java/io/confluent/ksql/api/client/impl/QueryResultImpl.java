@@ -21,7 +21,6 @@ import io.confluent.ksql.api.common.BufferedPublisher;
 import io.vertx.core.Context;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 class QueryResultImpl extends BufferedPublisher<Row> implements QueryResult {
 
@@ -30,7 +29,7 @@ class QueryResultImpl extends BufferedPublisher<Row> implements QueryResult {
   private final List<String> columnTypes;
   private final PollableSubscriber pollableSubscriber;
   private boolean polling;
-  private SimpleSubscriber simpleSubscriber;
+  private boolean subscribing;
 
   QueryResultImpl(final Context context, final String queryId, final List<String> columnNames,
       final List<String> columnTypes) {
@@ -63,8 +62,8 @@ class QueryResultImpl extends BufferedPublisher<Row> implements QueryResult {
 
   @Override
   public synchronized Row poll(final long timeout, final TimeUnit timeUnit) {
-    if (simpleSubscriber != null) {
-      throw new IllegalStateException("Cannot poll if consumer has been set");
+    if (subscribing) {
+      throw new IllegalStateException("Cannot poll if subscriber has been set");
     }
     if (!polling) {
       subscribe(pollableSubscriber);
@@ -74,23 +73,13 @@ class QueryResultImpl extends BufferedPublisher<Row> implements QueryResult {
   }
 
   @Override
-  public synchronized void setConsumer(final Consumer<Row> consumer) {
-    if (polling) {
-      throw new IllegalStateException("Cannot set consumer if has been used for polling");
-    }
-    this.simpleSubscriber = new SimpleSubscriber(ctx, consumer);
-    subscribe(simpleSubscriber);
+  public boolean isComplete() {
+    return false;
   }
 
   @Override
   public void close() {
-    // Outside the lock in case thread is polling
     pollableSubscriber.close();
-    synchronized (this) {
-      if (simpleSubscriber != null) {
-        simpleSubscriber.cancel();
-      }
-    }
   }
 
 

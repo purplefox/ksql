@@ -47,6 +47,11 @@ public class PollableSubscriber extends BaseSubscriber<Row> {
     queue.add(row);
   }
 
+  @Override
+  protected synchronized void handleComplete() {
+    close();
+  }
+
   public synchronized Row poll(final long timeout, final TimeUnit timeUnit) {
     if (closed) {
       return null;
@@ -74,6 +79,10 @@ public class PollableSubscriber extends BaseSubscriber<Row> {
 
   public void close() {
     closed = true;
+  }
+
+  synchronized boolean isClosed() {
+    return closed;
   }
 
   private void checkRequestTokens() {

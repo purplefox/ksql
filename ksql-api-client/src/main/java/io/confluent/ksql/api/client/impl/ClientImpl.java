@@ -15,16 +15,11 @@
 
 package io.confluent.ksql.api.client.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.ksql.api.client.Client;
 import io.confluent.ksql.api.client.ClientOptions;
 import io.confluent.ksql.api.client.QueryResult;
 import io.confluent.ksql.api.client.Row;
-import io.confluent.ksql.api.common.QueryResponseMetadata;
-import io.confluent.ksql.api.common.Utils;
-import io.vertx.core.Context;
 import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientResponse;
@@ -32,10 +27,8 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.parsetools.RecordParser;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.reactivestreams.Publisher;
@@ -46,25 +39,35 @@ public class ClientImpl implements Client {
   private final Vertx vertx;
   private final HttpClient httpClient;
   private final SocketAddress serverSocketAddress;
+  private final boolean ownedVertx;
+
+  public ClientImpl(final ClientOptions clientOptions, final Vertx vertx) {
+    this(clientOptions, vertx, false);
+  }
 
   public ClientImpl(final ClientOptions clientOptions) {
+    this(clientOptions, Vertx.vertx(), true);
+  }
 
+  private ClientImpl(final ClientOptions clientOptions, final Vertx vertx,
+      final boolean ownedVertx) {
     this.clientOptions = clientOptions.copy();
-    this.vertx = Vertx.vertx();
+    this.vertx = vertx;
+    this.ownedVertx = ownedVertx;
 
     final HttpClientOptions options = new HttpClientOptions()
         .setSsl(clientOptions.isUseTls())
         .setUseAlpn(true)
         .setProtocolVersion(HttpVersion.HTTP_2)
         .setDefaultHost(clientOptions.getHost())
-        .setDefaultPort(clientOptions.getPort());
+        .setDefaultPort(clientOptions.getPort())
+        .setTrustAll(true);
 
     this.httpClient = vertx.createHttpClient(options);
 
     this.serverSocketAddress = io.vertx.core.net.SocketAddress
         .inetSocketAddress(clientOptions.getPort(), clientOptions.getHost());
   }
-
 
   @Override
   public CompletableFuture<QueryResult> streamQuery(final String sql, final JsonObject properties) {
@@ -90,79 +93,10 @@ public class ClientImpl implements Client {
   private void handleResponse(final HttpClientResponse response,
       final CompletableFuture<QueryResult> cf) {
     final RecordParser recordParser = RecordParser.newDelimited("\n", response);
-    final ResponseHandler responseHandler = new ResponseHandler(Vertx.currentContext(),
+    final QueryResponseHandler responseHandler = new QueryResponseHandler(Vertx.currentContext(),
         recordParser, cf);
     recordParser.handler(responseHandler::handleBodyBuffer);
     recordParser.endHandler(responseHandler::handleBodyEnd);
-  }
-
-  private class ResponseHandler {
-
-    private final Context context;
-    private final RecordParser recordParser;
-    private final CompletableFuture<QueryResult> cf;
-    private boolean hasReadArguments;
-    private QueryResultImpl queryResult;
-    private boolean paused;
-
-    ResponseHandler(final Context context, final RecordParser recordParser,
-        final CompletableFuture<QueryResult> cf) {
-      this.context = context;
-      this.recordParser = recordParser;
-      this.cf = cf;
-    }
-
-    public void handleBodyBuffer(final Buffer buff) {
-      checkContext();
-      if (!hasReadArguments) {
-        handleArgs(buff);
-      } else if (queryResult != null) {
-        handleRow(buff);
-      }
-    }
-
-    private void handleArgs(final Buffer buff) {
-      hasReadArguments = true;
-
-      final QueryResponseMetadata queryResponseMetadata;
-      final ObjectMapper objectMapper = DatabindCodec.mapper();
-      try {
-        queryResponseMetadata = objectMapper
-            .readValue(buff.getBytes(), QueryResponseMetadata.class);
-      } catch (Exception e) {
-        cf.completeExceptionally(e);
-        return;
-      }
-
-      this.queryResult = new QueryResultImpl(context, queryResponseMetadata.queryId,
-          Collections.unmodifiableList(queryResponseMetadata.columnNames),
-          Collections.unmodifiableList(queryResponseMetadata.columnTypes));
-      cf.complete(queryResult);
-    }
-
-    private void handleRow(final Buffer buff) {
-      final JsonArray values = new JsonArray(buff);
-      final Row row = new RowImpl(queryResult.columnNames(), queryResult.columnTypes(), values);
-      final boolean full = queryResult.accept(row);
-      if (full && !paused) {
-        recordParser.pause();
-        queryResult.drainHandler(this::publisherReceptive);
-        paused = true;
-      }
-    }
-
-    private void publisherReceptive() {
-      paused = false;
-      recordParser.resume();
-    }
-
-    public void handleBodyEnd(final Void v) {
-      checkContext();
-    }
-
-    private void checkContext() {
-      Utils.checkContext(context);
-    }
   }
 
   @Override
@@ -183,5 +117,8 @@ public class ClientImpl implements Client {
   @Override
   public void close() {
     httpClient.close();
+    if (ownedVertx) {
+      vertx.close();
+    }
   }
 }

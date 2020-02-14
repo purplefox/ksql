@@ -17,7 +17,6 @@ package io.confluent.ksql.api.client;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 
 public interface QueryResult extends Publisher<Row> {
@@ -32,9 +31,7 @@ public interface QueryResult extends Publisher<Row> {
 
   Row poll(long timeout, TimeUnit timeUnit);
 
-  // TODO how do we represent end of stream (last row) in a consumer or when polling?????
-
-  void setConsumer(Consumer<Row> consumer);
+  boolean isComplete();
 
   void close();
 

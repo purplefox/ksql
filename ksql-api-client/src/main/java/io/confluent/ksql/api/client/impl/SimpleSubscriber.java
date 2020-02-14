@@ -27,6 +27,7 @@ class SimpleSubscriber extends BaseSubscriber<Row> {
 
   private final Consumer<Row> consumer;
   private int tokens;
+  private boolean complete;
 
   SimpleSubscriber(final Context context, final Consumer<Row> consumer) {
     super(context);
@@ -51,6 +52,10 @@ class SimpleSubscriber extends BaseSubscriber<Row> {
 
   @Override
   protected void handleError(final Throwable t) {
+  }
+
+  synchronized boolean isComplete() {
+    return complete;
   }
 
   private void checkRequestTokens() {
